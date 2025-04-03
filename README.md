@@ -1,4 +1,4 @@
-# Cheatsheet Generator
+# SheetCheater a _cheatsheet_ generator
 
 This project is a Gradio-based application that generates customized cheatsheets based on user inputs.
 

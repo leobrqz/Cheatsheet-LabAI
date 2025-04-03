@@ -1,13 +1,13 @@
 import os
-import gradio as gr
-from openai import OpenAI
 from dotenv import load_dotenv
+import gradio as gr
+from langchain_openai import ChatOpenAI
 
 # Load environment variables
 load_dotenv()
 
 # Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+llm = ChatOpenAI(model="gpt-4o-mini-2024-07-18", api_key=os.getenv("OPENAI_API_KEY"), temperature=0.7)
 
 def generate_response(prompt, theme, subject, style, output_format, exemplified, complexity, audience):
     # Construct the system message based on inputs
@@ -50,17 +50,17 @@ def generate_response(prompt, theme, subject, style, output_format, exemplified,
     - Output Format: {output_format} 
 
     """
+    
+    messages = [
+        ("system", instruction_prompt),
+        ("human", input_prompt)
+    ]
 
     # Get response from OpenAI
-    response = client.responses.create(
-        model="gpt-4o-mini",
-        instructions=instruction_prompt,
-        input=input_prompt,
-        temperature=0.7
-    )
-
+    response = llm.invoke(messages)
+    
     # Extract the content from the response
-    return response.output_text
+    return response.content
 
 # Create Gradio interface using Blocks
 with gr.Blocks() as demo:

@@ -134,10 +134,33 @@ def generate_cheatsheet(prompt, theme, subject, template_name, style, exemplifie
     
     return formatted_response, formatted_response
 
+def summarize_content_for_features(content):
+    """Creates a concise summary of the cheatsheet content for use in other features.
+    This helps reduce token usage when generating quizzes, flashcards, etc."""
+    summary_prompt = f"""
+    Create a concise summary of the following cheatsheet content that captures all key concepts and information.
+    This summary will be used to generate other learning materials, so it needs to be comprehensive yet concise.
+    
+    Content:
+    {content}
+    
+    Guidelines:
+    - Extract the most important concepts, definitions, and information
+    - Maintain the hierarchical structure of the content
+    - Include key examples and code snippets if present
+    - Keep the summary to about 30-40% of the original length
+    - Preserve markdown formatting for proper rendering
+    
+    Format the summary in markdown with appropriate headings and structure.
+    """
+    
+    response = llm.invoke([("human", summary_prompt)])
+    return response.content
+
 def generate_quiz(content, quiz_type, difficulty, count):
-    """Generates a quiz based on the cheatsheet content."""
+    """Generates a quiz based on the summarized cheatsheet content."""
     quiz_prompt = f"""
-    Based on the following cheatsheet content, generate a {quiz_type} quiz with {count} questions at {difficulty} difficulty level.
+    Based on the following summarized cheatsheet content, generate a {quiz_type} quiz with {count} questions at {difficulty} difficulty level.
     
     Content:
     {content}
@@ -174,9 +197,9 @@ def generate_quiz(content, quiz_type, difficulty, count):
     return response.content, response.content
 
 def generate_flashcards(content, count):
-    """Generates flashcards based on the cheatsheet content."""
+    """Generates flashcards based on the summarized cheatsheet content."""
     flashcard_prompt = f"""
-    Based on the following cheatsheet content, generate exactly {count} flashcards.
+    Based on the following summarized cheatsheet content, generate exactly {count} flashcards.
     Each flashcard should cover a key concept from the content.
     
     Content:
@@ -207,9 +230,9 @@ def generate_flashcards(content, count):
     return response.content, response.content
 
 def generate_practice_problems(content, problem_type, count):
-    """Generates practice problems based on the cheatsheet content."""
+    """Generates practice problems based on the summarized cheatsheet content."""
     problem_prompt = f"""
-    Based on the following cheatsheet content, generate {count} {problem_type} practice problems.
+    Based on the following summarized cheatsheet content, generate {count} {problem_type} practice problems.
     
     Content:
     {content}
@@ -234,6 +257,8 @@ def generate_practice_problems(content, problem_type, count):
 
 def generate_summary(content, level, focus):
     """Generates a summary of the cheatsheet content."""
+    # For the summary feature, we don't need to summarize the content again
+    # since we're already creating a summary
     summary_prompt = f"""
     Create a {level} summary of the following content, focusing on {focus}.
     

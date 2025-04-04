@@ -1,16 +1,14 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple, Any
 from datetime import datetime
-import logging
-from logger import setup_logging
+from logger import get_logger
 
-# Set up logging
-setup_logging()
-logger = logging.getLogger(__name__)
+# Get logger instance
+logger = get_logger(__name__)
 
 class LogQueryBuilder:
     def __init__(self):
         self.conditions: List[str] = []
-        self.parameters: List[any] = []
+        self.parameters: List[Any] = []
     
     def add_date_range(self, start_date: str, end_date: str) -> 'LogQueryBuilder':
         """
@@ -71,7 +69,7 @@ class LogQueryBuilder:
         self.parameters.extend([min_cost, max_cost])
         return self
     
-    def build(self, limit: Optional[int] = None) -> tuple[str, List[any]]:
+    def build(self, limit: Optional[int] = None) -> Tuple[str, List[Any]]:
         """
         Builds the final SQL query.
         

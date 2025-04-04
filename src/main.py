@@ -34,13 +34,11 @@ from utils import validate_date_format
 from formatters import LogFormatter
 from query_builder import LogQueryBuilder
 from singletons import OpenAIClient, DatabaseInstance
-import logging
 from datetime import datetime, timedelta
-from logger import setup_logging
+from logger import get_logger
 
-# Set up logging
-setup_logging()
-logger = logging.getLogger(__name__)
+# Get logger instance
+logger = get_logger(__name__)
 
 # Load environment variables
 load_dotenv()

@@ -1,10 +1,8 @@
 from datetime import datetime
-import logging
-from logger import setup_logging
+from logger import get_logger
 
-# Set up logging
-setup_logging()
-logger = logging.getLogger(__name__)
+# Get logger instance
+logger = get_logger(__name__)
 
 def validate_date_format(date_str: str) -> str:
     """

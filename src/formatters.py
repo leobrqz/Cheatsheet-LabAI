@@ -1,11 +1,9 @@
 from dataclasses import dataclass
 from typing import List, Dict, Any
-import logging
-from logger import setup_logging
+from logger import get_logger
 
-# Set up logging
-setup_logging()
-logger = logging.getLogger(__name__)
+# Get logger instance
+logger = get_logger(__name__)
 
 @dataclass
 class LogEntry:

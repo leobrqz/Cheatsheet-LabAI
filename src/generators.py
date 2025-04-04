@@ -4,12 +4,11 @@ from config import API_KEY, MODEL_NAME, TEMPERATURE, TEMPLATES
 from langchain_community.callbacks.manager import get_openai_callback
 from datetime import datetime
 from singletons import OpenAIClient, DatabaseInstance
-import logging
-from logger import setup_logging
+from typing import List, Dict, Any, Optional
+from logger import get_logger
 
-# Set up logging
-setup_logging()
-logger = logging.getLogger(__name__)
+# Get logger instance
+logger = get_logger(__name__)
 
 # Initialize database and OpenAI client
 db = DatabaseInstance.get_instance()
@@ -17,58 +16,70 @@ llm = OpenAIClient.get_instance()
 
 class TokenUsageTracker:
     def __init__(self):
-        self.logs = []
+        self.db = DatabaseInstance.get_instance()
     
-    def add_log(self, function_name, prompt_tokens, completion_tokens, total_tokens, cost, output=None):
-        """Add a log entry to both memory and database."""
-        log_entry = {
-            'timestamp': datetime.now().isoformat(),
-            'function_name': function_name,
-            'prompt_tokens': prompt_tokens,
-            'completion_tokens': completion_tokens,
-            'total_tokens': total_tokens,
-            'cost': cost
-        }
-        self.logs.append(log_entry)
-        # Also store in database with output
-        db.add_log(function_name, prompt_tokens, completion_tokens, total_tokens, cost, output)
+    def add_log(self, function_name: str, prompt_tokens: int, 
+                completion_tokens: int, total_tokens: int, 
+                cost: float, output: Optional[str] = None) -> None:
+        """Add a log entry to the database."""
+        try:
+            self.db.add_log(function_name, prompt_tokens, completion_tokens, 
+                          total_tokens, cost, output)
+        except Exception as e:
+            logger.error(f"Failed to add log entry: {e}")
+            raise
     
-    def _format_db_logs(self, db_logs):
-        """Format database logs into dictionaries."""
-        # The logs from the database are already dictionaries, so we can return them directly
-        return db_logs
+    def get_logs(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get logs from database."""
+        try:
+            return self.db.get_logs(limit)
+        except Exception as e:
+            logger.error(f"Failed to retrieve logs: {e}")
+            raise
     
-    def get_logs(self):
-        """Get logs from both memory and database."""
-        # Get logs from database
-        db_logs = db.get_logs()
-        # Update memory logs with database logs
-        self.logs = self._format_db_logs(db_logs)
-        return self.logs
-    
-    def get_logs_by_date_range(self, start_date, end_date, limit=100):
+    def get_logs_by_date_range(self, start_date: str, end_date: str, 
+                              limit: int = 100) -> List[Dict[str, Any]]:
         """Get logs from database filtered by date range."""
-        db_logs = db.get_logs_by_date_range(start_date, end_date, limit)
-        return self._format_db_logs(db_logs)
+        try:
+            return self.db.get_logs_by_date_range(start_date, end_date, limit)
+        except Exception as e:
+            logger.error(f"Failed to retrieve logs by date range: {e}")
+            raise
     
-    def get_logs_by_function(self, function_name, limit=100):
+    def get_logs_by_function(self, function_name: str, 
+                            limit: int = 100) -> List[Dict[str, Any]]:
         """Get logs from database filtered by function name."""
-        db_logs = db.get_logs_by_function(function_name, limit)
-        return self._format_db_logs(db_logs)
+        try:
+            return self.db.get_logs_by_function(function_name, limit)
+        except Exception as e:
+            logger.error(f"Failed to retrieve logs by function: {e}")
+            raise
     
-    def get_logs_by_token_range(self, min_tokens, max_tokens, limit=100):
+    def get_logs_by_token_range(self, min_tokens: int, max_tokens: int, 
+                               limit: int = 100) -> List[Dict[str, Any]]:
         """Get logs from database filtered by token range."""
-        db_logs = db.get_logs_by_token_range(min_tokens, max_tokens, limit)
-        return self._format_db_logs(db_logs)
+        try:
+            return self.db.get_logs_by_token_range(min_tokens, max_tokens, limit)
+        except Exception as e:
+            logger.error(f"Failed to retrieve logs by token range: {e}")
+            raise
     
-    def get_logs_by_cost_range(self, min_cost, max_cost, limit=100):
+    def get_logs_by_cost_range(self, min_cost: float, max_cost: float, 
+                              limit: int = 100) -> List[Dict[str, Any]]:
         """Get logs from database filtered by cost range."""
-        db_logs = db.get_logs_by_cost_range(min_cost, max_cost, limit)
-        return self._format_db_logs(db_logs)
+        try:
+            return self.db.get_logs_by_cost_range(min_cost, max_cost, limit)
+        except Exception as e:
+            logger.error(f"Failed to retrieve logs by cost range: {e}")
+            raise
     
-    def get_unique_functions(self):
+    def get_unique_functions(self) -> List[str]:
         """Get list of unique function names from database."""
-        return db.get_unique_functions()
+        try:
+            return self.db.get_unique_functions()
+        except Exception as e:
+            logger.error(f"Failed to retrieve unique functions: {e}")
+            raise
 
 # Create global token tracker instance
 token_tracker = TokenUsageTracker()

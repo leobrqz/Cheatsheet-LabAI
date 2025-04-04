@@ -1,6 +1,29 @@
 # Cheatsheet Generator
 
-This project is a Gradio-based application that generates customized cheatsheets based on user inputs.
+An AI-powered tool that generates customized cheatsheets, quizzes, flashcards, and practice problems based on user inputs.
+
+## Recent Updates
+
+- **Token Usage Tracking**: Added persistent storage of token usage in SQLite database
+- **Debug Logs**: Implemented detailed token usage monitoring and cost analysis
+- **Database Integration**: Added SQLite support for storing generation history and outputs
+- **Docker Support**: Added containerization for easy deployment
+- **Enhanced Templates**: Added customizable templates for different content types
+
+## Features
+
+- **Content Generation**
+  - Customizable cheatsheets with markdown formatting
+  - Multiple-choice quizzes with explanations
+  - Interactive flashcards for study
+  - Practice problems with solutions
+  - Smart content summarization
+
+- **Debug & Analytics**
+  - Real-time token usage tracking
+  - Cost analysis and statistics
+  - Persistent storage of generation history
+  - Detailed usage logs
 
 ## Setup Instructions
 
@@ -11,7 +34,9 @@ Create a `.env` file in the project root with your OpenAI API key:
 OPENAI_API_KEY=your_api_key_here
 ```
 
-#### Local Setup
+### 2. Choose Your Setup Method
+
+#### Option A: Local Setup
 
 1. Install Requirements:
 ```bash
@@ -20,12 +45,13 @@ pip install -r requirements.txt
 
 2. Start the Application:
 ```bash
-gradio main.py
+# From the project root directory
+python -m src.main
 ```
 
-The application will be available at `http://localhost:7860`
+The application will start, and you can access it in your browser locally.
 
-#### Docker Setup
+#### Option B: Docker Setup
 
 1. Build the Docker Image:
 ```bash

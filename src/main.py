@@ -22,9 +22,17 @@ from generators import (
     generate_summary,
     summarize_content_for_features,
     get_token_logs,
-    calculate_total_usage
+    calculate_total_usage,
+    get_token_logs_by_date_range,
+    get_token_logs_by_function,
+    get_token_logs_by_token_range,
+    get_token_logs_by_cost_range,
+    get_unique_functions,
+    calculate_total_usage_by_function,
+    calculate_total_usage_by_date
 )
 import logging
+from datetime import datetime, timedelta
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -108,6 +116,152 @@ def update_logs():
     """
     
     return log_data, stats
+
+def update_logs_by_date_range(start_date, end_date, limit):
+    """Update the logs display with data filtered by date range."""
+    logs = get_token_logs_by_date_range(start_date, end_date, limit)
+    if not logs:
+        return [], "No usage data available for the selected date range"
+    
+    # Convert logs to list format for dataframe
+    log_data = [[
+        log['timestamp'],
+        log['function_name'],
+        log['prompt_tokens'],
+        log['completion_tokens'],
+        log['total_tokens'],
+        log['cost']
+    ] for log in logs]
+    
+    # Calculate totals for the date range
+    totals = calculate_total_usage_by_date(start_date, end_date)
+    stats = f"""
+### Usage Statistics for Selected Date Range
+- **Total Prompt Tokens:** {totals['total_prompt_tokens']:,}
+- **Total Completion Tokens:** {totals['total_completion_tokens']:,}
+- **Total Tokens:** {totals['total_tokens']:,}
+- **Total Cost:** ${totals['total_cost']:.4f}
+    """
+    
+    return log_data, stats
+
+def update_logs_by_function(function_name, limit):
+    """Update the logs display with data filtered by function."""
+    logs = get_token_logs_by_function(function_name, limit)
+    if not logs:
+        return [], f"No usage data available for function: {function_name}"
+    
+    # Convert logs to list format for dataframe
+    log_data = [[
+        log['timestamp'],
+        log['function_name'],
+        log['prompt_tokens'],
+        log['completion_tokens'],
+        log['total_tokens'],
+        log['cost']
+    ] for log in logs]
+    
+    # Calculate totals for the function
+    function_totals = {
+        'total_prompt_tokens': sum(log['prompt_tokens'] for log in logs),
+        'total_completion_tokens': sum(log['completion_tokens'] for log in logs),
+        'total_tokens': sum(log['total_tokens'] for log in logs),
+        'total_cost': sum(log['cost'] for log in logs)
+    }
+    
+    stats = f"""
+### Usage Statistics for Function: {function_name}
+- **Total Prompt Tokens:** {function_totals['total_prompt_tokens']:,}
+- **Total Completion Tokens:** {function_totals['total_completion_tokens']:,}
+- **Total Tokens:** {function_totals['total_tokens']:,}
+- **Total Cost:** ${function_totals['total_cost']:.4f}
+    """
+    
+    return log_data, stats
+
+def update_logs_by_token_range(min_tokens, max_tokens, limit):
+    """Update the logs display with data filtered by token range."""
+    logs = get_token_logs_by_token_range(min_tokens, max_tokens, limit)
+    if not logs:
+        return [], f"No usage data available for token range: {min_tokens} - {max_tokens}"
+    
+    # Convert logs to list format for dataframe
+    log_data = [[
+        log['timestamp'],
+        log['function_name'],
+        log['prompt_tokens'],
+        log['completion_tokens'],
+        log['total_tokens'],
+        log['cost']
+    ] for log in logs]
+    
+    # Calculate totals for the token range
+    token_totals = {
+        'total_prompt_tokens': sum(log['prompt_tokens'] for log in logs),
+        'total_completion_tokens': sum(log['completion_tokens'] for log in logs),
+        'total_tokens': sum(log['total_tokens'] for log in logs),
+        'total_cost': sum(log['cost'] for log in logs)
+    }
+    
+    stats = f"""
+### Usage Statistics for Token Range: {min_tokens} - {max_tokens}
+- **Total Prompt Tokens:** {token_totals['total_prompt_tokens']:,}
+- **Total Completion Tokens:** {token_totals['total_completion_tokens']:,}
+- **Total Tokens:** {token_totals['total_tokens']:,}
+- **Total Cost:** ${token_totals['total_cost']:.4f}
+    """
+    
+    return log_data, stats
+
+def update_logs_by_cost_range(min_cost, max_cost, limit):
+    """Update the logs display with data filtered by cost range."""
+    logs = get_token_logs_by_cost_range(min_cost, max_cost, limit)
+    if not logs:
+        return [], f"No usage data available for cost range: ${min_cost:.4f} - ${max_cost:.4f}"
+    
+    # Convert logs to list format for dataframe
+    log_data = [[
+        log['timestamp'],
+        log['function_name'],
+        log['prompt_tokens'],
+        log['completion_tokens'],
+        log['total_tokens'],
+        log['cost']
+    ] for log in logs]
+    
+    # Calculate totals for the cost range
+    cost_totals = {
+        'total_prompt_tokens': sum(log['prompt_tokens'] for log in logs),
+        'total_completion_tokens': sum(log['completion_tokens'] for log in logs),
+        'total_tokens': sum(log['total_tokens'] for log in logs),
+        'total_cost': sum(log['cost'] for log in logs)
+    }
+    
+    stats = f"""
+### Usage Statistics for Cost Range: ${min_cost:.4f} - ${max_cost:.4f}
+- **Total Prompt Tokens:** {cost_totals['total_prompt_tokens']:,}
+- **Total Completion Tokens:** {cost_totals['total_completion_tokens']:,}
+- **Total Tokens:** {cost_totals['total_tokens']:,}
+- **Total Cost:** ${cost_totals['total_cost']:.4f}
+    """
+    
+    return log_data, stats
+
+def update_usage_by_function():
+    """Update the usage statistics grouped by function."""
+    function_usage = calculate_total_usage_by_function()
+    if not function_usage:
+        return "No usage data available by function"
+    
+    # Create a markdown table for function usage
+    table = "### Usage Statistics by Function\n\n"
+    table += "| Function | Prompt Tokens | Completion Tokens | Total Tokens | Cost |\n"
+    table += "|----------|---------------|------------------|--------------|------|\n"
+    
+    for func in function_usage:
+        table += f"| {func['function_name']} | {func['total_prompt_tokens']:,} | {func['total_completion_tokens']:,} | {func['total_tokens']:,} | ${func['total_cost']:.4f} |\n"
+    
+    return table
 
 # Create Gradio interface using Blocks
 with gr.Blocks(css=CSS) as demo:
@@ -295,106 +449,227 @@ with gr.Blocks(css=CSS) as demo:
         
         with gr.Row():
             total_stats = gr.Markdown("No usage data available")
-    
-    # Connect the buttons to their respective functions
-    generate_btn.click(
-        lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating cheatsheet...</p></div>", None, None),
-        outputs=[loading_output, output, raw_output]
-    ).then(
-        generate_cheatsheet_and_summarize,
-        inputs=[
-            prompt, theme, subject, template_name, style,
-            exemplified, complexity, audience, enforce_formatting
-        ],
-        outputs=[output, raw_output, summarized_content]
-    ).then(
-        update_logs,
-        outputs=[token_usage_table, total_stats]
-    ).then(
-        clear_loading_message,
-        inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
-        outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
-    )
-    
-    # Quiz generation with check
-    generate_quiz_btn.click(
-        lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating quiz...</p></div>", None),
-        outputs=[quiz_loading, quiz_output]
-    ).then(
-        quiz_with_check,
-        inputs=[summarized_content, quiz_type, difficulty, quiz_count],
-        outputs=[quiz_output, raw_quiz_output]
-    ).then(
-        update_logs,
-        outputs=[token_usage_table, total_stats]
-    ).then(
-        clear_loading_message,
-        inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
-        outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
-    )
-    
-    # Flashcards generation with check
-    generate_flashcards_btn.click(
-        lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating flashcards...</p></div>", None),
-        outputs=[flashcard_loading, flashcard_output]
-    ).then(
-        flashcards_with_check,
-        inputs=[summarized_content, flashcard_count],
-        outputs=[flashcard_output, raw_flashcard_output]
-    ).then(
-        update_logs,
-        outputs=[token_usage_table, total_stats]
-    ).then(
-        clear_loading_message,
-        inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
-        outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
-    )
-    
-    # Practice problems generation with check
-    generate_problems_btn.click(
-        lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating practice problems...</p></div>", None),
-        outputs=[problem_loading, problem_output]
-    ).then(
-        problems_with_check,
-        inputs=[summarized_content, problem_type, problem_count],
-        outputs=[problem_output, raw_problem_output]
-    ).then(
-        update_logs,
-        outputs=[token_usage_table, total_stats]
-    ).then(
-        clear_loading_message,
-        inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
-        outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
-    )
-    
-    # Summary generation with check
-    generate_summary_btn.click(
-        lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating summary...</p></div>", None),
-        outputs=[summary_loading, summary_output]
-    ).then(
-        summary_with_check,
-        inputs=[summarized_content, summary_level, summary_focus],
-        outputs=[summary_output, raw_summary_output]
-    ).then(
-        update_logs,
-        outputs=[token_usage_table, total_stats]
-    ).then(
-        clear_loading_message,
-        inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
-        outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
-    )
+        
+        with gr.Accordion("Advanced Query Options", open=False):
+            gr.Markdown("### Filter Logs by Date Range")
+            with gr.Row():
+                start_date = gr.Textbox(
+                    label="Start Date (YYYY-MM-DD)",
+                    placeholder="2023-01-01",
+                    value=(datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+                )
+                end_date = gr.Textbox(
+                    label="End Date (YYYY-MM-DD)",
+                    placeholder="2023-12-31",
+                    value=datetime.now().strftime("%Y-%m-%d")
+                )
+                date_limit = gr.Slider(
+                    minimum=10,
+                    maximum=1000,
+                    value=100,
+                    step=10,
+                    label="Limit Results"
+                )
+                query_by_date = gr.Button("Query by Date Range")
+            
+            gr.Markdown("### Filter Logs by Function")
+            with gr.Row():
+                function_dropdown = gr.Dropdown(
+                    choices=get_unique_functions(),
+                    label="Select Function",
+                    value=None
+                )
+                function_limit = gr.Slider(
+                    minimum=10,
+                    maximum=1000,
+                    value=100,
+                    step=10,
+                    label="Limit Results"
+                )
+                query_by_function = gr.Button("Query by Function")
+            
+            gr.Markdown("### Filter Logs by Token Range")
+            with gr.Row():
+                min_tokens = gr.Number(
+                    label="Minimum Tokens",
+                    value=0,
+                    precision=0
+                )
+                max_tokens = gr.Number(
+                    label="Maximum Tokens",
+                    value=10000,
+                    precision=0
+                )
+                token_limit = gr.Slider(
+                    minimum=10,
+                    maximum=1000,
+                    value=100,
+                    step=10,
+                    label="Limit Results"
+                )
+                query_by_tokens = gr.Button("Query by Token Range")
+            
+            gr.Markdown("### Filter Logs by Cost Range")
+            with gr.Row():
+                min_cost = gr.Number(
+                    label="Minimum Cost ($)",
+                    value=0.0,
+                    precision=4
+                )
+                max_cost = gr.Number(
+                    label="Maximum Cost ($)",
+                    value=1.0,
+                    precision=4
+                )
+                cost_limit = gr.Slider(
+                    minimum=10,
+                    maximum=1000,
+                    value=100,
+                    step=10,
+                    label="Limit Results"
+                )
+                query_by_cost = gr.Button("Query by Cost Range")
+            
+            gr.Markdown("### Usage Statistics by Function")
+            with gr.Row():
+                usage_by_function = gr.Markdown("No usage data available by function")
+                refresh_function_usage = gr.Button("Refresh Function Usage")
+        
+        # Connect the buttons to their respective functions
+        generate_btn.click(
+            lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating cheatsheet...</p></div>", None, None),
+            outputs=[loading_output, output, raw_output]
+        ).then(
+            generate_cheatsheet_and_summarize,
+            inputs=[
+                prompt, theme, subject, template_name, style,
+                exemplified, complexity, audience, enforce_formatting
+            ],
+            outputs=[output, raw_output, summarized_content]
+        ).then(
+            update_logs,
+            outputs=[token_usage_table, total_stats]
+        ).then(
+            clear_loading_message,
+            inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
+            outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
+        )
+        
+        # Quiz generation with check
+        generate_quiz_btn.click(
+            lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating quiz...</p></div>", None),
+            outputs=[quiz_loading, quiz_output]
+        ).then(
+            quiz_with_check,
+            inputs=[summarized_content, quiz_type, difficulty, quiz_count],
+            outputs=[quiz_output, raw_quiz_output]
+        ).then(
+            update_logs,
+            outputs=[token_usage_table, total_stats]
+        ).then(
+            clear_loading_message,
+            inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
+            outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
+        )
+        
+        # Flashcards generation with check
+        generate_flashcards_btn.click(
+            lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating flashcards...</p></div>", None),
+            outputs=[flashcard_loading, flashcard_output]
+        ).then(
+            flashcards_with_check,
+            inputs=[summarized_content, flashcard_count],
+            outputs=[flashcard_output, raw_flashcard_output]
+        ).then(
+            update_logs,
+            outputs=[token_usage_table, total_stats]
+        ).then(
+            clear_loading_message,
+            inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
+            outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
+        )
+        
+        # Practice problems generation with check
+        generate_problems_btn.click(
+            lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating practice problems...</p></div>", None),
+            outputs=[problem_loading, problem_output]
+        ).then(
+            problems_with_check,
+            inputs=[summarized_content, problem_type, problem_count],
+            outputs=[problem_output, raw_problem_output]
+        ).then(
+            update_logs,
+            outputs=[token_usage_table, total_stats]
+        ).then(
+            clear_loading_message,
+            inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
+            outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
+        )
+        
+        # Summary generation with check
+        generate_summary_btn.click(
+            lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating summary...</p></div>", None),
+            outputs=[summary_loading, summary_output]
+        ).then(
+            summary_with_check,
+            inputs=[summarized_content, summary_level, summary_focus],
+            outputs=[summary_output, raw_summary_output]
+        ).then(
+            update_logs,
+            outputs=[token_usage_table, total_stats]
+        ).then(
+            clear_loading_message,
+            inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
+            outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
+        )
 
-    # Connect refresh button
-    refresh_logs.click(
-        update_logs,
-        outputs=[token_usage_table, total_stats]
-    )
-    
-    # Add automatic log updates after each generation
-    def update_after_generation(*args):
-        """Updates logs after content generation."""
-        logs, stats = update_logs()
-        return [*args, logs, stats]
+        # Connect refresh button
+        refresh_logs.click(
+            update_logs,
+            outputs=[token_usage_table, total_stats]
+        )
+        
+        # Add automatic log updates after each generation
+        def update_after_generation(*args):
+            """Updates logs after content generation."""
+            logs, stats = update_logs()
+            return [*args, logs, stats]
+
+        # Connect the buttons to their respective functions
+        query_by_date.click(
+            update_logs_by_date_range,
+            inputs=[start_date, end_date, date_limit],
+            outputs=[token_usage_table, total_stats]
+        )
+        
+        query_by_function.click(
+            update_logs_by_function,
+            inputs=[function_dropdown, function_limit],
+            outputs=[token_usage_table, total_stats]
+        )
+        
+        query_by_tokens.click(
+            update_logs_by_token_range,
+            inputs=[min_tokens, max_tokens, token_limit],
+            outputs=[token_usage_table, total_stats]
+        )
+        
+        query_by_cost.click(
+            update_logs_by_cost_range,
+            inputs=[min_cost, max_cost, cost_limit],
+            outputs=[token_usage_table, total_stats]
+        )
+        
+        refresh_function_usage.click(
+            update_usage_by_function,
+            outputs=usage_by_function
+        )
+        
+        # Update function dropdown choices when logs are refreshed
+        refresh_logs.click(
+            lambda: gr.Dropdown(choices=get_unique_functions()),
+            outputs=function_dropdown
+        )
 
 if __name__ == "__main__":
     demo.launch()

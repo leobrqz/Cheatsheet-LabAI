@@ -40,6 +40,58 @@ class TokenUsageTracker:
             'cost': log[5]
         } for log in db_logs]
         return self.logs
+    
+    def get_logs_by_date_range(self, start_date, end_date, limit=100):
+        """Get logs from database filtered by date range."""
+        db_logs = db.get_logs_by_date_range(start_date, end_date, limit)
+        return [{
+            'timestamp': log[0],
+            'function_name': log[1],
+            'prompt_tokens': log[2],
+            'completion_tokens': log[3],
+            'total_tokens': log[4],
+            'cost': log[5]
+        } for log in db_logs]
+    
+    def get_logs_by_function(self, function_name, limit=100):
+        """Get logs from database filtered by function name."""
+        db_logs = db.get_logs_by_function(function_name, limit)
+        return [{
+            'timestamp': log[0],
+            'function_name': log[1],
+            'prompt_tokens': log[2],
+            'completion_tokens': log[3],
+            'total_tokens': log[4],
+            'cost': log[5]
+        } for log in db_logs]
+    
+    def get_logs_by_token_range(self, min_tokens, max_tokens, limit=100):
+        """Get logs from database filtered by token range."""
+        db_logs = db.get_logs_by_token_range(min_tokens, max_tokens, limit)
+        return [{
+            'timestamp': log[0],
+            'function_name': log[1],
+            'prompt_tokens': log[2],
+            'completion_tokens': log[3],
+            'total_tokens': log[4],
+            'cost': log[5]
+        } for log in db_logs]
+    
+    def get_logs_by_cost_range(self, min_cost, max_cost, limit=100):
+        """Get logs from database filtered by cost range."""
+        db_logs = db.get_logs_by_cost_range(min_cost, max_cost, limit)
+        return [{
+            'timestamp': log[0],
+            'function_name': log[1],
+            'prompt_tokens': log[2],
+            'completion_tokens': log[3],
+            'total_tokens': log[4],
+            'cost': log[5]
+        } for log in db_logs]
+    
+    def get_unique_functions(self):
+        """Get list of unique function names from database."""
+        return db.get_unique_functions()
 
 # Create global token tracker instance
 token_tracker = TokenUsageTracker()
@@ -351,9 +403,50 @@ def get_token_logs():
     """Returns the current token usage logs."""
     return token_tracker.get_logs()
 
+def get_token_logs_by_date_range(start_date, end_date, limit=100):
+    """Returns token usage logs filtered by date range."""
+    return token_tracker.get_logs_by_date_range(start_date, end_date, limit)
+
+def get_token_logs_by_function(function_name, limit=100):
+    """Returns token usage logs filtered by function name."""
+    return token_tracker.get_logs_by_function(function_name, limit)
+
+def get_token_logs_by_token_range(min_tokens, max_tokens, limit=100):
+    """Returns token usage logs filtered by token range."""
+    return token_tracker.get_logs_by_token_range(min_tokens, max_tokens, limit)
+
+def get_token_logs_by_cost_range(min_cost, max_cost, limit=100):
+    """Returns token usage logs filtered by cost range."""
+    return token_tracker.get_logs_by_cost_range(min_cost, max_cost, limit)
+
+def get_unique_functions():
+    """Returns a list of unique function names."""
+    return token_tracker.get_unique_functions()
+
 def calculate_total_usage():
     """Calculate total token usage and cost from database."""
     total_prompt_tokens, total_completion_tokens, total_tokens, total_cost = db.get_total_usage()
+    return {
+        'total_prompt_tokens': total_prompt_tokens or 0,
+        'total_completion_tokens': total_completion_tokens or 0,
+        'total_tokens': total_tokens or 0,
+        'total_cost': total_cost or 0
+    }
+
+def calculate_total_usage_by_function():
+    """Calculate total token usage and cost grouped by function."""
+    results = db.get_total_usage_by_function()
+    return [{
+        'function_name': row[0],
+        'total_prompt_tokens': row[1] or 0,
+        'total_completion_tokens': row[2] or 0,
+        'total_tokens': row[3] or 0,
+        'total_cost': row[4] or 0
+    } for row in results]
+
+def calculate_total_usage_by_date(start_date, end_date):
+    """Calculate total token usage and cost for a specific date range."""
+    total_prompt_tokens, total_completion_tokens, total_tokens, total_cost = db.get_total_usage_by_date(start_date, end_date)
     return {
         'total_prompt_tokens': total_prompt_tokens or 0,
         'total_completion_tokens': total_completion_tokens or 0,

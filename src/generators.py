@@ -12,7 +12,7 @@ class TokenUsageTracker:
     def __init__(self):
         self.logs = []
     
-    def add_log(self, function_name, prompt_tokens, completion_tokens, total_tokens, cost):
+    def add_log(self, function_name, prompt_tokens, completion_tokens, total_tokens, cost, output=None):
         """Add a log entry to both memory and database."""
         log_entry = {
             'timestamp': datetime.now().isoformat(),
@@ -23,8 +23,8 @@ class TokenUsageTracker:
             'cost': cost
         }
         self.logs.append(log_entry)
-        # Also store in database
-        db.add_log(function_name, prompt_tokens, completion_tokens, total_tokens, cost)
+        # Also store in database with output
+        db.add_log(function_name, prompt_tokens, completion_tokens, total_tokens, cost, output)
     
     def get_logs(self):
         """Get logs from both memory and database."""
@@ -170,7 +170,7 @@ def generate_cheatsheet(prompt, theme, subject, template_name, style, exemplifie
         response = llm.invoke(messages)
         
         # Track token usage
-        token_tracker.add_log('generate_cheatsheet', cb.prompt_tokens, cb.completion_tokens, cb.total_tokens, cb.total_cost)
+        token_tracker.add_log('generate_cheatsheet', cb.prompt_tokens, cb.completion_tokens, cb.total_tokens, cb.total_cost, response.content)
         
         # Fix markdown formatting issues if enabled
         if enforce_formatting:
@@ -243,7 +243,7 @@ def generate_quiz(content, quiz_type, difficulty, count):
         response = llm.invoke([("human", quiz_prompt)])
         
         # Track token usage
-        token_tracker.add_log('generate_quiz', cb.prompt_tokens, cb.completion_tokens, cb.total_tokens, cb.total_cost)
+        token_tracker.add_log('generate_quiz', cb.prompt_tokens, cb.completion_tokens, cb.total_tokens, cb.total_cost, response.content)
         
         return response.content, response.content
 
@@ -281,7 +281,7 @@ def generate_flashcards(content, count):
         response = llm.invoke([("human", flashcard_prompt)])
         
         # Track token usage
-        token_tracker.add_log('generate_flashcards', cb.prompt_tokens, cb.completion_tokens, cb.total_tokens, cb.total_cost)
+        token_tracker.add_log('generate_flashcards', cb.prompt_tokens, cb.completion_tokens, cb.total_tokens, cb.total_cost, response.content)
         
         return response.content, response.content
 
@@ -312,7 +312,7 @@ def generate_practice_problems(content, problem_type, count):
         response = llm.invoke([("human", problem_prompt)])
         
         # Track token usage
-        token_tracker.add_log('generate_practice_problems', cb.prompt_tokens, cb.completion_tokens, cb.total_tokens, cb.total_cost)
+        token_tracker.add_log('generate_practice_problems', cb.prompt_tokens, cb.completion_tokens, cb.total_tokens, cb.total_cost, response.content)
         
         return response.content, response.content
 
@@ -343,7 +343,7 @@ def generate_summary(content, level, focus):
         response = llm.invoke([("human", summary_prompt)])
         
         # Track token usage
-        token_tracker.add_log('generate_summary', cb.prompt_tokens, cb.completion_tokens, cb.total_tokens, cb.total_cost)
+        token_tracker.add_log('generate_summary', cb.prompt_tokens, cb.completion_tokens, cb.total_tokens, cb.total_cost, response.content)
         
         return response.content, response.content
 

@@ -2,3 +2,4 @@
 .env
 .gradio
 src/db/
+__pycache__

@@ -11,6 +11,12 @@ class Database:
         # Create the directory if it doesn't exist
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         
+        # Drop existing table to recreate with new schema
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('DROP TABLE IF EXISTS token_logs')
+            conn.commit()
+        
         self._create_tables()
     
     def _create_tables(self):
@@ -25,21 +31,22 @@ class Database:
                     prompt_tokens INTEGER NOT NULL,
                     completion_tokens INTEGER NOT NULL,
                     total_tokens INTEGER NOT NULL,
-                    cost REAL NOT NULL
+                    cost REAL NOT NULL,
+                    output TEXT
                 )
             ''')
             conn.commit()
     
-    def add_log(self, function_name, prompt_tokens, completion_tokens, total_tokens, cost):
-        """Add a new token usage log entry."""
+    def add_log(self, function_name, prompt_tokens, completion_tokens, total_tokens, cost, output=None):
+        """Add a new token usage log entry with optional output."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO token_logs 
-                (timestamp, function_name, prompt_tokens, completion_tokens, total_tokens, cost)
-                VALUES (?, ?, ?, ?, ?, ?)
+                (timestamp, function_name, prompt_tokens, completion_tokens, total_tokens, cost, output)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (datetime.now().isoformat(), function_name, prompt_tokens, 
-                 completion_tokens, total_tokens, cost))
+                 completion_tokens, total_tokens, cost, output))
             conn.commit()
     
     def get_logs(self, limit=100):

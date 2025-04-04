@@ -304,6 +304,10 @@ with gr.Blocks(css=CSS) as demo:
     ).then(
         update_logs,
         outputs=[token_usage_table, total_stats]
+    ).then(
+        clear_loading_message,
+        inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
+        outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
     )
     
     # Quiz generation with check
@@ -317,6 +321,10 @@ with gr.Blocks(css=CSS) as demo:
     ).then(
         update_logs,
         outputs=[token_usage_table, total_stats]
+    ).then(
+        clear_loading_message,
+        inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
+        outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
     )
     
     # Flashcards generation with check
@@ -330,6 +338,10 @@ with gr.Blocks(css=CSS) as demo:
     ).then(
         update_logs,
         outputs=[token_usage_table, total_stats]
+    ).then(
+        clear_loading_message,
+        inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
+        outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
     )
     
     # Practice problems generation with check
@@ -343,6 +355,10 @@ with gr.Blocks(css=CSS) as demo:
     ).then(
         update_logs,
         outputs=[token_usage_table, total_stats]
+    ).then(
+        clear_loading_message,
+        inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
+        outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
     )
     
     # Summary generation with check
@@ -356,6 +372,10 @@ with gr.Blocks(css=CSS) as demo:
     ).then(
         update_logs,
         outputs=[token_usage_table, total_stats]
+    ).then(
+        clear_loading_message,
+        inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
+        outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
     )
 
     # Connect refresh button

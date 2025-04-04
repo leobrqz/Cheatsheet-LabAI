@@ -3,10 +3,17 @@ import re
 from config import API_KEY, MODEL_NAME, TEMPERATURE, TEMPLATES
 from langchain_community.callbacks.manager import get_openai_callback
 from datetime import datetime
-from database import Database
+from singletons import OpenAIClient, DatabaseInstance
+import logging
+from logger import setup_logging
 
-# Initialize database
-db = Database()
+# Set up logging
+setup_logging()
+logger = logging.getLogger(__name__)
+
+# Initialize database and OpenAI client
+db = DatabaseInstance.get_instance()
+llm = OpenAIClient.get_instance()
 
 class TokenUsageTracker:
     def __init__(self):
@@ -26,68 +33,38 @@ class TokenUsageTracker:
         # Also store in database with output
         db.add_log(function_name, prompt_tokens, completion_tokens, total_tokens, cost, output)
     
+    def _format_db_logs(self, db_logs):
+        """Format database logs into dictionaries."""
+        # The logs from the database are already dictionaries, so we can return them directly
+        return db_logs
+    
     def get_logs(self):
         """Get logs from both memory and database."""
         # Get logs from database
         db_logs = db.get_logs()
         # Update memory logs with database logs
-        self.logs = [{
-            'timestamp': log[0],
-            'function_name': log[1],
-            'prompt_tokens': log[2],
-            'completion_tokens': log[3],
-            'total_tokens': log[4],
-            'cost': log[5]
-        } for log in db_logs]
+        self.logs = self._format_db_logs(db_logs)
         return self.logs
     
     def get_logs_by_date_range(self, start_date, end_date, limit=100):
         """Get logs from database filtered by date range."""
         db_logs = db.get_logs_by_date_range(start_date, end_date, limit)
-        return [{
-            'timestamp': log[0],
-            'function_name': log[1],
-            'prompt_tokens': log[2],
-            'completion_tokens': log[3],
-            'total_tokens': log[4],
-            'cost': log[5]
-        } for log in db_logs]
+        return self._format_db_logs(db_logs)
     
     def get_logs_by_function(self, function_name, limit=100):
         """Get logs from database filtered by function name."""
         db_logs = db.get_logs_by_function(function_name, limit)
-        return [{
-            'timestamp': log[0],
-            'function_name': log[1],
-            'prompt_tokens': log[2],
-            'completion_tokens': log[3],
-            'total_tokens': log[4],
-            'cost': log[5]
-        } for log in db_logs]
+        return self._format_db_logs(db_logs)
     
     def get_logs_by_token_range(self, min_tokens, max_tokens, limit=100):
         """Get logs from database filtered by token range."""
         db_logs = db.get_logs_by_token_range(min_tokens, max_tokens, limit)
-        return [{
-            'timestamp': log[0],
-            'function_name': log[1],
-            'prompt_tokens': log[2],
-            'completion_tokens': log[3],
-            'total_tokens': log[4],
-            'cost': log[5]
-        } for log in db_logs]
+        return self._format_db_logs(db_logs)
     
     def get_logs_by_cost_range(self, min_cost, max_cost, limit=100):
         """Get logs from database filtered by cost range."""
         db_logs = db.get_logs_by_cost_range(min_cost, max_cost, limit)
-        return [{
-            'timestamp': log[0],
-            'function_name': log[1],
-            'prompt_tokens': log[2],
-            'completion_tokens': log[3],
-            'total_tokens': log[4],
-            'cost': log[5]
-        } for log in db_logs]
+        return self._format_db_logs(db_logs)
     
     def get_unique_functions(self):
         """Get list of unique function names from database."""
@@ -95,9 +72,6 @@ class TokenUsageTracker:
 
 # Create global token tracker instance
 token_tracker = TokenUsageTracker()
-
-# Initialize OpenAI client
-llm = ChatOpenAI(model=MODEL_NAME, api_key=API_KEY, temperature=TEMPERATURE)
 
 def fix_markdown_formatting(text):
     """Fixes common markdown formatting issues."""

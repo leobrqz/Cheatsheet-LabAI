@@ -1,6 +1,5 @@
 from dotenv import load_dotenv
 import gradio as gr
-from langchain_openai import ChatOpenAI
 from config import (
     TEMPLATES,
     LEARNING_FEATURES,
@@ -31,19 +30,24 @@ from generators import (
     calculate_total_usage_by_function,
     calculate_total_usage_by_date
 )
+from utils import validate_date_format
+from formatters import LogFormatter
+from query_builder import LogQueryBuilder
+from singletons import OpenAIClient, DatabaseInstance
 import logging
 from datetime import datetime, timedelta
+from logger import setup_logging
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-# Suppress httpx logs
-logging.getLogger("httpx").setLevel(logging.WARNING)
+# Set up logging
+setup_logging()
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
 
-# Initialize OpenAI client
-llm = ChatOpenAI(model=MODEL_NAME, api_key=API_KEY, temperature=TEMPERATURE)
+# Initialize OpenAI client and database
+llm = OpenAIClient.get_instance()
+db = DatabaseInstance.get_instance()
 
 def generate_cheatsheet_and_summarize(prompt, theme, subject, template_name, style, exemplified, complexity, audience, enforce_formatting):
     """Generates a cheatsheet and creates a summary for use in other features."""
@@ -57,37 +61,28 @@ def generate_cheatsheet_and_summarize(prompt, theme, subject, template_name, sty
     
     return cheatsheet, raw_cheatsheet, summarized_content
 
+def check_summarized_content(summarized_content, feature_name, generate_func, *args):
+    """Checks if a cheatsheet has been generated before allowing feature generation."""
+    if not summarized_content or summarized_content.strip() == "":
+        return f"Please generate a cheatsheet first before using the {feature_name} feature.", ""
+    
+    return generate_func(summarized_content, *args)
+
 def quiz_with_check(summarized_content, quiz_type, difficulty, quiz_count):
     """Checks if a cheatsheet has been generated before allowing quiz generation."""
-    if not summarized_content or summarized_content.strip() == "":
-        return "Please generate a cheatsheet first before using this feature.", ""
-    
-    return generate_quiz(summarized_content, quiz_type, difficulty, quiz_count)
+    return check_summarized_content(summarized_content, "Quiz", generate_quiz, quiz_type, difficulty, quiz_count)
 
 def flashcards_with_check(summarized_content, flashcard_count):
     """Checks if a cheatsheet has been generated before allowing flashcard generation."""
-    if not summarized_content or summarized_content.strip() == "":
-        return "Please generate a cheatsheet first before using this feature.", ""
-    
-    return generate_flashcards(summarized_content, flashcard_count)
+    return check_summarized_content(summarized_content, "Flashcards", generate_flashcards, flashcard_count)
 
 def problems_with_check(summarized_content, problem_type, problem_count):
     """Checks if a cheatsheet has been generated before allowing problem generation."""
-    if not summarized_content or summarized_content.strip() == "":
-        return "Please generate a cheatsheet first before using this feature.", ""
-    
-    return generate_practice_problems(summarized_content, problem_type, problem_count)
+    return check_summarized_content(summarized_content, "Practice Problems", generate_practice_problems, problem_type, problem_count)
 
 def summary_with_check(summarized_content, summary_level, summary_focus):
     """Checks if a cheatsheet has been generated before allowing summary generation."""
-    if not summarized_content or summarized_content.strip() == "":
-        return "Please generate a cheatsheet first before using this feature.", ""
-    
-    return generate_summary(summarized_content, summary_level, summary_focus)
-
-def clear_loading_message(cheatsheet, raw_cheatsheet, quiz, raw_quiz, flashcards, raw_flashcards, problems, raw_problems, summary, raw_summary):
-    """Clears only the loading messages while preserving the content."""
-    return "", "", "", "", ""  # Only clear the 5 loading indicators
+    return check_summarized_content(summarized_content, "Summary", generate_summary, summary_level, summary_focus)
 
 def update_logs():
     """Update the logs display with the latest token usage data."""
@@ -95,55 +90,36 @@ def update_logs():
     if not logs:
         return [], "No usage data available"
     
-    # Convert logs to list format for dataframe
-    log_data = [[
-        log['timestamp'],
-        log['function_name'],
-        log['prompt_tokens'],
-        log['completion_tokens'],
-        log['total_tokens'],
-        log['cost']
-    ] for log in logs]
+    # Use LogFormatter to format logs
+    log_data = LogFormatter.format_for_display(logs)
     
     # Calculate totals
-    totals = calculate_total_usage()
-    stats = f"""
-### Total Usage Statistics
-- **Total Prompt Tokens:** {totals['total_prompt_tokens']:,}
-- **Total Completion Tokens:** {totals['total_completion_tokens']:,}
-- **Total Tokens:** {totals['total_tokens']:,}
-- **Total Cost:** ${totals['total_cost']:.4f}
-    """
+    totals = LogFormatter.calculate_totals(logs)
+    stats = LogFormatter.format_stats(totals)
     
     return log_data, stats
 
 def update_logs_by_date_range(start_date, end_date, limit):
     """Update the logs display with data filtered by date range."""
-    logs = get_token_logs_by_date_range(start_date, end_date, limit)
-    if not logs:
-        return [], "No usage data available for the selected date range"
-    
-    # Convert logs to list format for dataframe
-    log_data = [[
-        log['timestamp'],
-        log['function_name'],
-        log['prompt_tokens'],
-        log['completion_tokens'],
-        log['total_tokens'],
-        log['cost']
-    ] for log in logs]
-    
-    # Calculate totals for the date range
-    totals = calculate_total_usage_by_date(start_date, end_date)
-    stats = f"""
-### Usage Statistics for Selected Date Range
-- **Total Prompt Tokens:** {totals['total_prompt_tokens']:,}
-- **Total Completion Tokens:** {totals['total_completion_tokens']:,}
-- **Total Tokens:** {totals['total_tokens']:,}
-- **Total Cost:** ${totals['total_cost']:.4f}
-    """
-    
-    return log_data, stats
+    try:
+        # Validate dates
+        start_date = validate_date_format(start_date)
+        end_date = validate_date_format(end_date)
+        
+        logs = get_token_logs_by_date_range(start_date, end_date, limit)
+        if not logs:
+            return [], "No usage data available for the selected date range"
+        
+        # Use LogFormatter to format logs
+        log_data = LogFormatter.format_for_display(logs)
+        
+        # Calculate totals for the date range
+        totals = LogFormatter.calculate_totals(logs)
+        stats = LogFormatter.format_stats(totals)
+        
+        return log_data, stats
+    except ValueError as e:
+        return [], f"Error: {str(e)}"
 
 def update_logs_by_function(function_name, limit):
     """Update the logs display with data filtered by function."""
@@ -151,31 +127,12 @@ def update_logs_by_function(function_name, limit):
     if not logs:
         return [], f"No usage data available for function: {function_name}"
     
-    # Convert logs to list format for dataframe
-    log_data = [[
-        log['timestamp'],
-        log['function_name'],
-        log['prompt_tokens'],
-        log['completion_tokens'],
-        log['total_tokens'],
-        log['cost']
-    ] for log in logs]
+    # Use LogFormatter to format logs
+    log_data = LogFormatter.format_for_display(logs)
     
     # Calculate totals for the function
-    function_totals = {
-        'total_prompt_tokens': sum(log['prompt_tokens'] for log in logs),
-        'total_completion_tokens': sum(log['completion_tokens'] for log in logs),
-        'total_tokens': sum(log['total_tokens'] for log in logs),
-        'total_cost': sum(log['cost'] for log in logs)
-    }
-    
-    stats = f"""
-### Usage Statistics for Function: {function_name}
-- **Total Prompt Tokens:** {function_totals['total_prompt_tokens']:,}
-- **Total Completion Tokens:** {function_totals['total_completion_tokens']:,}
-- **Total Tokens:** {function_totals['total_tokens']:,}
-- **Total Cost:** ${function_totals['total_cost']:.4f}
-    """
+    totals = LogFormatter.calculate_totals(logs)
+    stats = LogFormatter.format_stats(totals)
     
     return log_data, stats
 
@@ -185,31 +142,12 @@ def update_logs_by_token_range(min_tokens, max_tokens, limit):
     if not logs:
         return [], f"No usage data available for token range: {min_tokens} - {max_tokens}"
     
-    # Convert logs to list format for dataframe
-    log_data = [[
-        log['timestamp'],
-        log['function_name'],
-        log['prompt_tokens'],
-        log['completion_tokens'],
-        log['total_tokens'],
-        log['cost']
-    ] for log in logs]
+    # Use LogFormatter to format logs
+    log_data = LogFormatter.format_for_display(logs)
     
     # Calculate totals for the token range
-    token_totals = {
-        'total_prompt_tokens': sum(log['prompt_tokens'] for log in logs),
-        'total_completion_tokens': sum(log['completion_tokens'] for log in logs),
-        'total_tokens': sum(log['total_tokens'] for log in logs),
-        'total_cost': sum(log['cost'] for log in logs)
-    }
-    
-    stats = f"""
-### Usage Statistics for Token Range: {min_tokens} - {max_tokens}
-- **Total Prompt Tokens:** {token_totals['total_prompt_tokens']:,}
-- **Total Completion Tokens:** {token_totals['total_completion_tokens']:,}
-- **Total Tokens:** {token_totals['total_tokens']:,}
-- **Total Cost:** ${token_totals['total_cost']:.4f}
-    """
+    totals = LogFormatter.calculate_totals(logs)
+    stats = LogFormatter.format_stats(totals)
     
     return log_data, stats
 
@@ -219,31 +157,12 @@ def update_logs_by_cost_range(min_cost, max_cost, limit):
     if not logs:
         return [], f"No usage data available for cost range: ${min_cost:.4f} - ${max_cost:.4f}"
     
-    # Convert logs to list format for dataframe
-    log_data = [[
-        log['timestamp'],
-        log['function_name'],
-        log['prompt_tokens'],
-        log['completion_tokens'],
-        log['total_tokens'],
-        log['cost']
-    ] for log in logs]
+    # Use LogFormatter to format logs
+    log_data = LogFormatter.format_for_display(logs)
     
     # Calculate totals for the cost range
-    cost_totals = {
-        'total_prompt_tokens': sum(log['prompt_tokens'] for log in logs),
-        'total_completion_tokens': sum(log['completion_tokens'] for log in logs),
-        'total_tokens': sum(log['total_tokens'] for log in logs),
-        'total_cost': sum(log['cost'] for log in logs)
-    }
-    
-    stats = f"""
-### Usage Statistics for Cost Range: ${min_cost:.4f} - ${max_cost:.4f}
-- **Total Prompt Tokens:** {cost_totals['total_prompt_tokens']:,}
-- **Total Completion Tokens:** {cost_totals['total_completion_tokens']:,}
-- **Total Tokens:** {cost_totals['total_tokens']:,}
-- **Total Cost:** ${cost_totals['total_cost']:.4f}
-    """
+    totals = LogFormatter.calculate_totals(logs)
+    stats = LogFormatter.format_stats(totals)
     
     return log_data, stats
 
@@ -262,6 +181,47 @@ def update_usage_by_function():
         table += f"| {func['function_name']} | {func['total_prompt_tokens']:,} | {func['total_completion_tokens']:,} | {func['total_tokens']:,} | ${func['total_cost']:.4f} |\n"
     
     return table
+
+def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_tokens, min_cost, max_cost, limit):
+    """Apply multiple filters to the logs."""
+    try:
+        # Create query builder
+        query_builder = LogQueryBuilder()
+        
+        # Add date range if provided
+        if start_date and end_date:
+            start_date = validate_date_format(start_date)
+            end_date = validate_date_format(end_date)
+            query_builder.add_date_range(start_date, end_date)
+        
+        # Add function filter if provided
+        if function_name:
+            query_builder.add_function_filter(function_name)
+        
+        # Add token range if provided
+        if min_tokens is not None and max_tokens is not None:
+            query_builder.add_token_range(min_tokens, max_tokens)
+        
+        # Add cost range if provided
+        if min_cost is not None and max_cost is not None:
+            query_builder.add_cost_range(min_cost, max_cost)
+        
+        # Execute query
+        logs = db.query_logs(query_builder, limit)
+        if not logs:
+            return [], "No logs match the selected criteria"
+        
+        # Format results
+        log_data = LogFormatter.format_for_display(logs)
+        
+        # Calculate totals
+        totals = LogFormatter.calculate_totals(logs)
+        
+        stats = LogFormatter.format_stats(totals)
+        
+        return log_data, stats
+    except ValueError as e:
+        return [], f"Error: {str(e)}"
 
 # Create Gradio interface using Blocks
 with gr.Blocks(css=CSS) as demo:
@@ -451,18 +411,55 @@ with gr.Blocks(css=CSS) as demo:
             total_stats = gr.Markdown("No usage data available")
         
         with gr.Accordion("Advanced Query Options", open=False):
-            gr.Markdown("### Filter Logs by Date Range")
+            gr.Markdown("### Combined Filters")
             with gr.Row():
-                start_date = gr.Textbox(
-                    label="Start Date (YYYY-MM-DD)",
-                    placeholder="2023-01-01",
-                    value=(datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
-                )
-                end_date = gr.Textbox(
-                    label="End Date (YYYY-MM-DD)",
-                    placeholder="2023-12-31",
-                    value=datetime.now().strftime("%Y-%m-%d")
-                )
+                with gr.Column(scale=1):
+                    start_date = gr.Textbox(
+                        label="Start Date (YYYY-MM-DD)",
+                        value=(datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+                    )
+                    end_date = gr.Textbox(
+                        label="End Date (YYYY-MM-DD)",
+                        value=datetime.now().strftime("%Y-%m-%d")
+                    )
+                    function_dropdown = gr.Dropdown(
+                        choices=get_unique_functions(),
+                        label="Select Function",
+                        value=None
+                    )
+                with gr.Column(scale=1):
+                    min_tokens = gr.Number(
+                        label="Minimum Tokens",
+                        value=0,
+                        precision=0
+                    )
+                    max_tokens = gr.Number(
+                        label="Maximum Tokens",
+                        value=10000,
+                        precision=0
+                    )
+                    min_cost = gr.Number(
+                        label="Minimum Cost ($)",
+                        value=0.0,
+                        precision=4
+                    )
+                    max_cost = gr.Number(
+                        label="Maximum Cost ($)",
+                        value=1.0,
+                        precision=4
+                    )
+                with gr.Column(scale=1):
+                    limit = gr.Slider(
+                        minimum=10,
+                        maximum=1000,
+                        value=100,
+                        step=10,
+                        label="Limit Results"
+                    )
+                    apply_filters = gr.Button("Apply Filters")
+            
+            gr.Markdown("### Individual Filters")
+            with gr.Row():
                 date_limit = gr.Slider(
                     minimum=10,
                     maximum=1000,
@@ -472,13 +469,7 @@ with gr.Blocks(css=CSS) as demo:
                 )
                 query_by_date = gr.Button("Query by Date Range")
             
-            gr.Markdown("### Filter Logs by Function")
             with gr.Row():
-                function_dropdown = gr.Dropdown(
-                    choices=get_unique_functions(),
-                    label="Select Function",
-                    value=None
-                )
                 function_limit = gr.Slider(
                     minimum=10,
                     maximum=1000,
@@ -488,18 +479,7 @@ with gr.Blocks(css=CSS) as demo:
                 )
                 query_by_function = gr.Button("Query by Function")
             
-            gr.Markdown("### Filter Logs by Token Range")
             with gr.Row():
-                min_tokens = gr.Number(
-                    label="Minimum Tokens",
-                    value=0,
-                    precision=0
-                )
-                max_tokens = gr.Number(
-                    label="Maximum Tokens",
-                    value=10000,
-                    precision=0
-                )
                 token_limit = gr.Slider(
                     minimum=10,
                     maximum=1000,
@@ -509,18 +489,7 @@ with gr.Blocks(css=CSS) as demo:
                 )
                 query_by_tokens = gr.Button("Query by Token Range")
             
-            gr.Markdown("### Filter Logs by Cost Range")
             with gr.Row():
-                min_cost = gr.Number(
-                    label="Minimum Cost ($)",
-                    value=0.0,
-                    precision=4
-                )
-                max_cost = gr.Number(
-                    label="Maximum Cost ($)",
-                    value=1.0,
-                    precision=4
-                )
                 cost_limit = gr.Slider(
                     minimum=10,
                     maximum=1000,
@@ -537,7 +506,7 @@ with gr.Blocks(css=CSS) as demo:
         
         # Connect the buttons to their respective functions
         generate_btn.click(
-            lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating cheatsheet...</p></div>", None, None),
+            fn=lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating cheatsheet...</p></div>", None, None),
             outputs=[loading_output, output, raw_output]
         ).then(
             generate_cheatsheet_and_summarize,
@@ -550,8 +519,7 @@ with gr.Blocks(css=CSS) as demo:
             update_logs,
             outputs=[token_usage_table, total_stats]
         ).then(
-            clear_loading_message,
-            inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
+            lambda: ("", "", "", "", ""),  # Clear loading indicators
             outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
         )
         
@@ -567,8 +535,7 @@ with gr.Blocks(css=CSS) as demo:
             update_logs,
             outputs=[token_usage_table, total_stats]
         ).then(
-            clear_loading_message,
-            inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
+            lambda: ("", "", "", "", ""),  # Clear loading indicators
             outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
         )
         
@@ -584,8 +551,7 @@ with gr.Blocks(css=CSS) as demo:
             update_logs,
             outputs=[token_usage_table, total_stats]
         ).then(
-            clear_loading_message,
-            inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
+            lambda: ("", "", "", "", ""),  # Clear loading indicators
             outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
         )
         
@@ -601,8 +567,7 @@ with gr.Blocks(css=CSS) as demo:
             update_logs,
             outputs=[token_usage_table, total_stats]
         ).then(
-            clear_loading_message,
-            inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
+            lambda: ("", "", "", "", ""),  # Clear loading indicators
             outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
         )
         
@@ -618,8 +583,7 @@ with gr.Blocks(css=CSS) as demo:
             update_logs,
             outputs=[token_usage_table, total_stats]
         ).then(
-            clear_loading_message,
-            inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
+            lambda: ("", "", "", "", ""),  # Clear loading indicators
             outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
         )
 
@@ -629,13 +593,14 @@ with gr.Blocks(css=CSS) as demo:
             outputs=[token_usage_table, total_stats]
         )
         
-        # Add automatic log updates after each generation
-        def update_after_generation(*args):
-            """Updates logs after content generation."""
-            logs, stats = update_logs()
-            return [*args, logs, stats]
-
-        # Connect the buttons to their respective functions
+        # Connect combined filters
+        apply_filters.click(
+            apply_combined_filters,
+            inputs=[start_date, end_date, function_dropdown, min_tokens, max_tokens, min_cost, max_cost, limit],
+            outputs=[token_usage_table, total_stats]
+        )
+        
+        # Connect individual filters
         query_by_date.click(
             update_logs_by_date_range,
             inputs=[start_date, end_date, date_limit],

@@ -4,9 +4,15 @@ import json
 import os
 import stat
 import logging
+from typing import List, Dict, Any, Optional, Tuple
+
+from utils import validate_date_format
+from formatters import LogFormatter, LogEntry
+from query_builder import LogQueryBuilder
+from logger import setup_logging
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+setup_logging()
 logger = logging.getLogger(__name__)
 
 class Database:
@@ -106,7 +112,7 @@ class Database:
             logger.error(f"Unexpected error when adding log: {e}")
             raise
     
-    def get_logs(self, limit=100):
+    def get_logs(self, limit=100) -> List[Dict[str, Any]]:
         """Retrieve the most recent logs."""
         # Validate limit parameter
         if not isinstance(limit, int) or limit < 1:
@@ -117,12 +123,14 @@ class Database:
                 cursor = conn.cursor()
                 cursor.execute('''
                     SELECT timestamp, function_name, prompt_tokens, completion_tokens, 
-                           total_tokens, cost
+                           total_tokens, cost, output
                     FROM token_logs
                     ORDER BY timestamp DESC
                     LIMIT ?
                 ''', (limit,))
-                return cursor.fetchall()
+                return [dict(zip(['timestamp', 'function_name', 'prompt_tokens', 
+                                'completion_tokens', 'total_tokens', 'cost', 'output'], row))
+                        for row in cursor.fetchall()]
         except sqlite3.Error as e:
             logger.error(f"Database error when retrieving logs: {e}")
             raise
@@ -130,24 +138,30 @@ class Database:
             logger.error(f"Unexpected error when retrieving logs: {e}")
             raise
     
-    def get_logs_by_date_range(self, start_date, end_date, limit=100):
+    def get_logs_by_date_range(self, start_date, end_date, limit=100) -> List[Dict[str, Any]]:
         """Retrieve logs within a specific date range."""
         # Validate parameters
         if not isinstance(limit, int) or limit < 1:
             raise ValueError("limit must be a positive integer")
+        
+        # Validate and normalize dates
+        start_date = validate_date_format(start_date)
+        end_date = validate_date_format(end_date)
         
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
                     SELECT timestamp, function_name, prompt_tokens, completion_tokens, 
-                           total_tokens, cost
+                           total_tokens, cost, output
                     FROM token_logs
                     WHERE timestamp BETWEEN ? AND ?
                     ORDER BY timestamp DESC
                     LIMIT ?
                 ''', (start_date, end_date, limit))
-                return cursor.fetchall()
+                return [dict(zip(['timestamp', 'function_name', 'prompt_tokens', 
+                                'completion_tokens', 'total_tokens', 'cost', 'output'], row))
+                        for row in cursor.fetchall()]
         except sqlite3.Error as e:
             logger.error(f"Database error when retrieving logs by date range: {e}")
             raise
@@ -155,7 +169,7 @@ class Database:
             logger.error(f"Unexpected error when retrieving logs by date range: {e}")
             raise
     
-    def get_logs_by_function(self, function_name, limit=100):
+    def get_logs_by_function(self, function_name, limit=100) -> List[Dict[str, Any]]:
         """Retrieve logs for a specific function."""
         # Validate parameters
         if not isinstance(function_name, str):
@@ -168,13 +182,15 @@ class Database:
                 cursor = conn.cursor()
                 cursor.execute('''
                     SELECT timestamp, function_name, prompt_tokens, completion_tokens, 
-                           total_tokens, cost
+                           total_tokens, cost, output
                     FROM token_logs
                     WHERE function_name = ?
                     ORDER BY timestamp DESC
                     LIMIT ?
                 ''', (function_name, limit))
-                return cursor.fetchall()
+                return [dict(zip(['timestamp', 'function_name', 'prompt_tokens', 
+                                'completion_tokens', 'total_tokens', 'cost', 'output'], row))
+                        for row in cursor.fetchall()]
         except sqlite3.Error as e:
             logger.error(f"Database error when retrieving logs by function: {e}")
             raise
@@ -182,7 +198,7 @@ class Database:
             logger.error(f"Unexpected error when retrieving logs by function: {e}")
             raise
     
-    def get_logs_by_token_range(self, min_tokens, max_tokens, limit=100):
+    def get_logs_by_token_range(self, min_tokens, max_tokens, limit=100) -> List[Dict[str, Any]]:
         """Retrieve logs with total tokens within a specific range."""
         # Validate parameters
         if not isinstance(min_tokens, int) or min_tokens < 0:
@@ -197,13 +213,15 @@ class Database:
                 cursor = conn.cursor()
                 cursor.execute('''
                     SELECT timestamp, function_name, prompt_tokens, completion_tokens, 
-                           total_tokens, cost
+                           total_tokens, cost, output
                     FROM token_logs
                     WHERE total_tokens BETWEEN ? AND ?
                     ORDER BY timestamp DESC
                     LIMIT ?
                 ''', (min_tokens, max_tokens, limit))
-                return cursor.fetchall()
+                return [dict(zip(['timestamp', 'function_name', 'prompt_tokens', 
+                                'completion_tokens', 'total_tokens', 'cost', 'output'], row))
+                        for row in cursor.fetchall()]
         except sqlite3.Error as e:
             logger.error(f"Database error when retrieving logs by token range: {e}")
             raise
@@ -211,7 +229,7 @@ class Database:
             logger.error(f"Unexpected error when retrieving logs by token range: {e}")
             raise
     
-    def get_logs_by_cost_range(self, min_cost, max_cost, limit=100):
+    def get_logs_by_cost_range(self, min_cost, max_cost, limit=100) -> List[Dict[str, Any]]:
         """Retrieve logs with cost within a specific range."""
         # Validate parameters
         if not isinstance(min_cost, (int, float)) or min_cost < 0:
@@ -226,13 +244,15 @@ class Database:
                 cursor = conn.cursor()
                 cursor.execute('''
                     SELECT timestamp, function_name, prompt_tokens, completion_tokens, 
-                           total_tokens, cost
+                           total_tokens, cost, output
                     FROM token_logs
                     WHERE cost BETWEEN ? AND ?
                     ORDER BY timestamp DESC
                     LIMIT ?
                 ''', (min_cost, max_cost, limit))
-                return cursor.fetchall()
+                return [dict(zip(['timestamp', 'function_name', 'prompt_tokens', 
+                                'completion_tokens', 'total_tokens', 'cost', 'output'], row))
+                        for row in cursor.fetchall()]
         except sqlite3.Error as e:
             logger.error(f"Database error when retrieving logs by cost range: {e}")
             raise
@@ -240,7 +260,7 @@ class Database:
             logger.error(f"Unexpected error when retrieving logs by cost range: {e}")
             raise
     
-    def get_unique_functions(self):
+    def get_unique_functions(self) -> List[str]:
         """Retrieve a list of unique function names in the database."""
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -258,7 +278,7 @@ class Database:
             logger.error(f"Unexpected error when retrieving unique functions: {e}")
             raise
     
-    def get_total_usage(self):
+    def get_total_usage(self) -> Tuple[int, int, int, float]:
         """Calculate total token usage and cost."""
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -279,7 +299,7 @@ class Database:
             logger.error(f"Unexpected error when calculating total usage: {e}")
             raise
     
-    def get_total_usage_by_function(self):
+    def get_total_usage_by_function(self) -> List[Tuple[str, int, int, int, float]]:
         """Calculate total token usage and cost grouped by function."""
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -303,8 +323,12 @@ class Database:
             logger.error(f"Unexpected error when calculating total usage by function: {e}")
             raise
     
-    def get_total_usage_by_date(self, start_date, end_date):
+    def get_total_usage_by_date(self, start_date, end_date) -> Tuple[int, int, int, float]:
         """Calculate total token usage and cost for a specific date range."""
+        # Validate and normalize dates
+        start_date = validate_date_format(start_date)
+        end_date = validate_date_format(end_date)
+        
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
@@ -323,4 +347,30 @@ class Database:
             raise
         except Exception as e:
             logger.error(f"Unexpected error when calculating total usage by date: {e}")
+            raise
+    
+    def query_logs(self, query_builder: LogQueryBuilder, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        Execute a custom query using the LogQueryBuilder.
+        
+        Args:
+            query_builder: LogQueryBuilder instance with conditions
+            limit: Optional limit for the number of results
+            
+        Returns:
+            List of log entries matching the query
+        """
+        try:
+            query, parameters = query_builder.build(limit)
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, parameters)
+                return [dict(zip(['timestamp', 'function_name', 'prompt_tokens', 
+                                'completion_tokens', 'total_tokens', 'cost', 'output'], row))
+                        for row in cursor.fetchall()]
+        except sqlite3.Error as e:
+            logger.error(f"Database error when executing custom query: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error when executing custom query: {e}")
             raise 

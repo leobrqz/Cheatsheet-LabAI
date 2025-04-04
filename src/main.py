@@ -24,6 +24,12 @@ from generators import (
     get_token_logs,
     calculate_total_usage
 )
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+# Suppress httpx logs
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # Load environment variables
 load_dotenv()

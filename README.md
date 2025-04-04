@@ -4,26 +4,27 @@ An AI-powered tool that generates customized cheatsheets, quizzes, flashcards, a
 
 ## Recent Updates
 
-- **Token Usage Tracking**: Added persistent storage of token usage in SQLite database
-- **Debug Logs**: Implemented detailed token usage monitoring and cost analysis
-- **Database Integration**: Added SQLite support for storing generation history and outputs
-- **Docker Support**: Added containerization for easy deployment
-- **Enhanced Templates**: Added customizable templates for different content types
+- **Token Usage Tracking**: Added persistent storage of token usage in SQLite database with historical data preservation
+- **Debug Logs**: Implemented detailed token usage monitoring and cost analysis with real-time statistics
+- **Database Integration**: Added SQLite support for storing generation history and outputs with automatic directory creation
+- **Docker Support**: Added containerization for easy deployment with optimized image size and environment configuration
+- **Enhanced Templates**: Added customizable templates for different content types with markdown formatting support
 
 ## Features
 
 - **Content Generation**
-  - Customizable cheatsheets with markdown formatting
-  - Multiple-choice quizzes with explanations
-  - Interactive flashcards for study
-  - Practice problems with solutions
-  - Smart content summarization
+  - Customizable cheatsheets with markdown formatting and syntax highlighting
+  - Multiple-choice quizzes with explanations and difficulty levels
+  - Interactive flashcards for study with spaced repetition support
+  - Practice problems with solutions and step-by-step explanations
+  - Smart content summarization with customizable focus areas
 
 - **Debug & Analytics**
-  - Real-time token usage tracking
-  - Cost analysis and statistics
-  - Persistent storage of generation history
-  - Detailed usage logs
+  - Real-time token usage tracking with persistent storage
+  - Cost analysis and statistics with historical trends
+  - Persistent storage of generation history across sessions
+  - Detailed usage logs with function-specific metrics
+  - SQLite database for reliable data persistence
 
 ## Setup Instructions
 
@@ -34,9 +35,9 @@ Create a `.env` file in the project root with your OpenAI API key:
 OPENAI_API_KEY=your_api_key_here
 ```
 
-### 2. Choose Your Setup Method
+### Setup Method
 
-#### Option A: Local Setup
+#### Local Setup
 
 1. Install Requirements:
 ```bash
@@ -46,12 +47,12 @@ pip install -r requirements.txt
 2. Start the Application:
 ```bash
 # From the project root directory
-python -m src.main
+gradio -m src.main
 ```
 
-The application will start, and you can access it in your browser locally.
+The application will be available at `http://localhost:7860`
 
-#### Option B: Docker Setup
+#### Docker Setup
 
 1. Build the Docker Image:
 ```bash

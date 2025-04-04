@@ -11,12 +11,6 @@ class Database:
         # Create the directory if it doesn't exist
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         
-        # Drop existing table to recreate with new schema
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('DROP TABLE IF EXISTS token_logs')
-            conn.commit()
-        
         self._create_tables()
     
     def _create_tables(self):

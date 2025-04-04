@@ -636,5 +636,50 @@ with gr.Blocks(css=CSS) as demo:
             outputs=function_dropdown
         )
 
+    with gr.Tab("About"):
+        gr.Markdown("""
+        # AI Cheatsheet Generator
+        
+        ## How This App Works
+        
+        ### 1. Cheatsheet Generation 🎯
+        - Enter your prompt, theme, and subject
+        - Choose from various templates and styles
+        - Let AI generate high-quality content
+        
+        ### 2. Learning Features 📚
+        - **Quizzes** 📝 - Test your knowledge with multiple-choice, fill-in-the-blank, or true/false questions
+        - **Flashcards** 🗂️ - Create study cards for memorization and review
+        - **Practice Problems** ✍️ - Generate exercises to reinforce learning
+        - **Summaries** 📚 - Get concise summaries at different detail levels
+        
+        ### 3. Token Usage Tracking 📊
+        - Monitor API usage and costs
+        - View detailed logs of all API calls
+        - Track usage patterns over time
+        
+        ## Technical Stack
+        
+        - 🐍 Built with Python
+        - 🎨 Gradio UI Framework
+        - 🤖 OpenAI API Integration
+        - 🗄️ SQLite Database
+        
+        #
+        ### Connect With Me
+        **Created by Leonardo Briquezi**
+        - [GitHub](https://github.com/leobrqz) 
+        - [LinkedIn](https://www.linkedin.com/in/leonardobri/) 💼
+        
+        
+    
+        ### Documentation
+        - [Gradio Documentation](https://www.gradio.app/docs) 🎨
+        - [OpenAI API Documentation](https://platform.openai.com/docs/api-reference) 🤖
+        - [LangChain Documentation](https://python.langchain.com/docs/get_started/introduction) 🔗
+        - [SQLite Documentation](https://www.sqlite.org/docs.html) 🗄️
+        
+        """)
+
 if __name__ == "__main__":
     demo.launch()

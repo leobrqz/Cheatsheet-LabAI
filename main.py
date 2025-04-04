@@ -20,7 +20,9 @@ from generators import (
     generate_flashcards,
     generate_practice_problems,
     generate_summary,
-    summarize_content_for_features
+    summarize_content_for_features,
+    get_token_logs,
+    calculate_total_usage
 )
 
 # Load environment variables
@@ -72,6 +74,34 @@ def summary_with_check(summarized_content, summary_level, summary_focus):
 def clear_loading_message(cheatsheet, raw_cheatsheet, quiz, raw_quiz, flashcards, raw_flashcards, problems, raw_problems, summary, raw_summary):
     """Clears only the loading messages while preserving the content."""
     return "", "", "", "", ""  # Only clear the 5 loading indicators
+
+def update_logs():
+    """Updates the token usage logs and statistics."""
+    logs = get_token_logs()
+    if not logs:
+        return [], "No usage data available"
+    
+    # Convert logs to list format for dataframe
+    log_data = [[
+        log['timestamp'],
+        log['function'],
+        log['prompt_tokens'],
+        log['completion_tokens'],
+        log['total_tokens'],
+        log['cost']
+    ] for log in logs]
+    
+    # Calculate totals
+    totals = calculate_total_usage()
+    stats = f"""
+### Total Usage Statistics
+- **Total Prompt Tokens:** {totals['total_prompt_tokens']:,}
+- **Total Completion Tokens:** {totals['total_completion_tokens']:,}
+- **Total Tokens:** {totals['total_tokens']:,}
+- **Total Cost:** ${totals['total_cost']:.4f}
+    """
+    
+    return log_data, stats
 
 # Create Gradio interface using Blocks
 with gr.Blocks(css=CSS) as demo:
@@ -243,6 +273,23 @@ with gr.Blocks(css=CSS) as demo:
                 with gr.TabItem("Raw Text"):
                     raw_summary_output = gr.Code(label="Raw Markdown", language="markdown")
     
+    with gr.Tab("Debug Logs"):
+        gr.Markdown("<h1 style='text-align: center; font-size: 32px; margin-bottom: 30px;'>Debug Logs</h1>")
+        gr.Markdown("<p style='text-align: center; color: #666;'>Monitor token usage and costs for debugging and optimization</p>")
+        
+        with gr.Row():
+            refresh_logs = gr.Button("Refresh Logs", scale=0)
+        
+        with gr.Row():
+            token_usage_table = gr.Dataframe(
+                headers=["Time", "Function", "Prompt Tokens", "Completion Tokens", "Total Tokens", "Cost"],
+                label="Token Usage Logs",
+                interactive=False
+            )
+        
+        with gr.Row():
+            total_stats = gr.Markdown("No usage data available")
+    
     # Connect the buttons to their respective functions
     generate_btn.click(
         lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating cheatsheet...</p></div>", None, None),
@@ -255,9 +302,8 @@ with gr.Blocks(css=CSS) as demo:
         ],
         outputs=[output, raw_output, summarized_content]
     ).then(
-        clear_loading_message,
-        inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
-        outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
+        update_logs,
+        outputs=[token_usage_table, total_stats]
     )
     
     # Quiz generation with check
@@ -269,9 +315,8 @@ with gr.Blocks(css=CSS) as demo:
         inputs=[summarized_content, quiz_type, difficulty, quiz_count],
         outputs=[quiz_output, raw_quiz_output]
     ).then(
-        clear_loading_message,
-        inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
-        outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
+        update_logs,
+        outputs=[token_usage_table, total_stats]
     )
     
     # Flashcards generation with check
@@ -283,9 +328,8 @@ with gr.Blocks(css=CSS) as demo:
         inputs=[summarized_content, flashcard_count],
         outputs=[flashcard_output, raw_flashcard_output]
     ).then(
-        clear_loading_message,
-        inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
-        outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
+        update_logs,
+        outputs=[token_usage_table, total_stats]
     )
     
     # Practice problems generation with check
@@ -297,9 +341,8 @@ with gr.Blocks(css=CSS) as demo:
         inputs=[summarized_content, problem_type, problem_count],
         outputs=[problem_output, raw_problem_output]
     ).then(
-        clear_loading_message,
-        inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
-        outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
+        update_logs,
+        outputs=[token_usage_table, total_stats]
     )
     
     # Summary generation with check
@@ -311,10 +354,21 @@ with gr.Blocks(css=CSS) as demo:
         inputs=[summarized_content, summary_level, summary_focus],
         outputs=[summary_output, raw_summary_output]
     ).then(
-        clear_loading_message,
-        inputs=[output, raw_output, quiz_output, raw_quiz_output, flashcard_output, raw_flashcard_output, problem_output, raw_problem_output, summary_output, raw_summary_output],
-        outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
+        update_logs,
+        outputs=[token_usage_table, total_stats]
     )
+
+    # Connect refresh button
+    refresh_logs.click(
+        update_logs,
+        outputs=[token_usage_table, total_stats]
+    )
+    
+    # Add automatic log updates after each generation
+    def update_after_generation(*args):
+        """Updates logs after content generation."""
+        logs, stats = update_logs()
+        return [*args, logs, stats]
 
 if __name__ == "__main__":
     demo.launch()

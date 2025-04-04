@@ -1,6 +1,29 @@
 from langchain_openai import ChatOpenAI
 import re
 from config import API_KEY, MODEL_NAME, TEMPERATURE, TEMPLATES
+from langchain_community.callbacks.manager import get_openai_callback
+from datetime import datetime
+
+# Initialize token tracker
+class TokenUsageTracker:
+    def __init__(self):
+        self.logs = []
+    
+    def add_log(self, function_name, tokens_data):
+        self.logs.append({
+            'timestamp': datetime.now().strftime('%H:%M:%S'),
+            'function': function_name,
+            'prompt_tokens': tokens_data.prompt_tokens,
+            'completion_tokens': tokens_data.completion_tokens,
+            'total_tokens': tokens_data.total_tokens,
+            'cost': f"${tokens_data.total_cost:.4f}"
+        })
+    
+    def get_logs(self):
+        return self.logs
+
+# Create global token tracker instance
+token_tracker = TokenUsageTracker()
 
 # Initialize OpenAI client
 llm = ChatOpenAI(model=MODEL_NAME, api_key=API_KEY, temperature=TEMPERATURE)
@@ -116,23 +139,27 @@ def construct_input_prompt(prompt, theme, subject, complexity, audience, style, 
 
 def generate_cheatsheet(prompt, theme, subject, template_name, style, exemplified, complexity, audience, enforce_formatting):
     """Generates a cheatsheet response based on user inputs."""
-    system_message = construct_instruction_prompt()
-    user_message = construct_input_prompt(prompt, theme, subject, complexity, audience, style, exemplified, template_name)
-    
-    messages = [
-        ("system", system_message),
-        ("human", user_message)
-    ]
-    
-    response = llm.invoke(messages)
-    
-    # Fix markdown formatting issues if enabled
-    if enforce_formatting:
-        formatted_response = fix_markdown_formatting(response.content)
-    else:
-        formatted_response = response.content
-    
-    return formatted_response, formatted_response
+    with get_openai_callback() as cb:
+        system_message = construct_instruction_prompt()
+        user_message = construct_input_prompt(prompt, theme, subject, complexity, audience, style, exemplified, template_name)
+        
+        messages = [
+            ("system", system_message),
+            ("human", user_message)
+        ]
+        
+        response = llm.invoke(messages)
+        
+        # Track token usage
+        token_tracker.add_log('generate_cheatsheet', cb)
+        
+        # Fix markdown formatting issues if enabled
+        if enforce_formatting:
+            formatted_response = fix_markdown_formatting(response.content)
+        else:
+            formatted_response = response.content
+        
+        return formatted_response, formatted_response
 
 def summarize_content_for_features(content):
     """Creates a concise summary of the cheatsheet content for use in other features.
@@ -159,126 +186,171 @@ def summarize_content_for_features(content):
 
 def generate_quiz(content, quiz_type, difficulty, count):
     """Generates a quiz based on the summarized cheatsheet content."""
-    quiz_prompt = f"""
-    Based on the following summarized cheatsheet content, generate a {quiz_type} quiz with {count} questions at {difficulty} difficulty level.
-    
-    Content:
-    {content}
-    
-    For multiple choice questions, provide 4 options with one correct answer.
-    For fill-in-the-blank questions, provide the sentence with a blank and the correct answer.
-    For true/false questions, provide the statement and whether it's true or false.
-    
-    Format the quiz in markdown with the following structure:
-    # Quiz: [Topic]
-    
-    ## Question 1
-    [Question text]
-    
-    **Options:**
-    - A) [Option A]
-    - B) [Option B]
-    - C) [Option C]
-    - D) [Option D]
-    
-    **Correct Answer:** [Letter of correct option]
-    
-    **Explanation:** [Brief explanation of why this is correct]
-    
-    [Repeat for all questions]
-    
-    ## Answer Key
-    1. [Letter]
-    2. [Letter]
-    ...
-    """
-    
-    response = llm.invoke([("human", quiz_prompt)])
-    return response.content, response.content
+    with get_openai_callback() as cb:
+        quiz_prompt = f"""
+        Based on the following summarized cheatsheet content, generate a {quiz_type} quiz with {count} questions at {difficulty} difficulty level.
+        
+        Content:
+        {content}
+        
+        For multiple choice questions, provide 4 options with one correct answer.
+        For fill-in-the-blank questions, provide the sentence with a blank and the correct answer.
+        For true/false questions, provide the statement and whether it's true or false.
+        
+        Format the quiz in markdown with the following structure:
+        # Quiz: [Topic]
+        
+        ## Question 1
+        [Question text]
+        
+        **Options:**
+        - A) [Option A]
+        - B) [Option B]
+        - C) [Option C]
+        - D) [Option D]
+        
+        **Correct Answer:** [Letter of correct option]
+        
+        **Explanation:** [Brief explanation of why this is correct]
+        
+        [Repeat for all questions]
+        
+        ## Answer Key
+        1. [Letter]
+        2. [Letter]
+        ...
+        """
+        
+        response = llm.invoke([("human", quiz_prompt)])
+        
+        # Track token usage
+        token_tracker.add_log('generate_quiz', cb)
+        
+        return response.content, response.content
 
 def generate_flashcards(content, count):
     """Generates flashcards based on the summarized cheatsheet content."""
-    flashcard_prompt = f"""
-    Based on the following summarized cheatsheet content, generate exactly {count} flashcards.
-    Each flashcard should cover a key concept from the content.
-    
-    Content:
-    {content}
-    
-    Format the flashcards in markdown with the following structure:
-    # Flashcards: Key Concepts ({count} cards)
+    with get_openai_callback() as cb:
+        flashcard_prompt = f"""
+        Based on the following summarized cheatsheet content, generate exactly {count} flashcards.
+        Each flashcard should cover a key concept from the content.
+        
+        Content:
+        {content}
+        
+        Format the flashcards in markdown with the following structure:
+        # Flashcards: Key Concepts ({count} cards)
 
-    ## Card 1
-    **Question:** [Question text]
-    
-    **Answer:** [Answer text]
+        ## Card 1
+        **Question:** [Question text]
+        
+        **Answer:** [Answer text]
 
-    ## Card 2
-    **Question:** [Question text]
-    
-    **Answer:** [Answer text]
+        ## Card 2
+        **Question:** [Question text]
+        
+        **Answer:** [Answer text]
 
-    [Continue for exactly {count} cards]
-    
-    Make each flashcard focused on testing understanding of a specific concept.
-    Ensure questions are clear and answers are concise but complete.
-    Number each card sequentially.
-    Add a blank line between cards for better readability.
-    """
-    
-    response = llm.invoke([("human", flashcard_prompt)])
-    return response.content, response.content
+        [Continue for exactly {count} cards]
+        
+        Make each flashcard focused on testing understanding of a specific concept.
+        Ensure questions are clear and answers are concise but complete.
+        Number each card sequentially.
+        Add a blank line between cards for better readability.
+        """
+        
+        response = llm.invoke([("human", flashcard_prompt)])
+        
+        # Track token usage
+        token_tracker.add_log('generate_flashcards', cb)
+        
+        return response.content, response.content
 
 def generate_practice_problems(content, problem_type, count):
     """Generates practice problems based on the summarized cheatsheet content."""
-    problem_prompt = f"""
-    Based on the following summarized cheatsheet content, generate {count} {problem_type} practice problems.
-    
-    Content:
-    {content}
-    
-    Format the problems in markdown with the following structure:
-    # Practice Problems: [Topic]
-    
-    ## Problem 1
-    [Problem description]
-    
-    **Solution:**
-    [Solution details]
-    
-    [Repeat for all problems]
-    
-    Make sure the problems are challenging but solvable based on the content provided.
-    For code challenges, include sample code and expected output.
-    """
-    
-    response = llm.invoke([("human", problem_prompt)])
-    return response.content, response.content
+    with get_openai_callback() as cb:
+        problem_prompt = f"""
+        Based on the following summarized cheatsheet content, generate {count} {problem_type} practice problems.
+        
+        Content:
+        {content}
+        
+        Format the problems in markdown with the following structure:
+        # Practice Problems: [Topic]
+        
+        ## Problem 1
+        [Problem description]
+        
+        **Solution:**
+        [Solution details]
+        
+        [Repeat for all problems]
+        
+        Make sure the problems are challenging but solvable based on the content provided.
+        For code challenges, include sample code and expected output.
+        """
+        
+        response = llm.invoke([("human", problem_prompt)])
+        
+        # Track token usage
+        token_tracker.add_log('generate_practice_problems', cb)
+        
+        return response.content, response.content
 
 def generate_summary(content, level, focus):
     """Generates a summary of the cheatsheet content."""
-    # For the summary feature, we don't need to summarize the content again
-    # since we're already creating a summary
-    summary_prompt = f"""
-    Create a {level} summary of the following content, focusing on {focus}.
+    with get_openai_callback() as cb:
+        summary_prompt = f"""
+        Create a {level} summary of the following content, focusing on {focus}.
+        
+        Content:
+        {content}
+        
+        Guidelines based on level:
+        - tldr: 2-3 sentences capturing the most important points
+        - detailed: Key points with brief explanations (1-2 paragraphs)
+        - comprehensive: Full analysis with examples and connections
+        
+        Focus areas based on selection:
+        - concepts: Core theories and principles
+        - examples: Practical applications and cases
+        - applications: Real-world usage and implementation
+        
+        Format the summary in markdown with appropriate headings and structure.
+        Use bullet points for clarity when appropriate.
+        Include specific examples from the content when relevant.
+        """
+        
+        response = llm.invoke([("human", summary_prompt)])
+        
+        # Track token usage
+        token_tracker.add_log('generate_summary', cb)
+        
+        return response.content, response.content
+
+def get_token_logs():
+    """Returns the current token usage logs."""
+    return token_tracker.get_logs()
+
+def calculate_total_usage():
+    """Calculates total token usage and cost."""
+    logs = token_tracker.get_logs()
+    if not logs:
+        return {
+            'total_prompt_tokens': 0,
+            'total_completion_tokens': 0,
+            'total_tokens': 0,
+            'total_cost': 0.0
+        }
     
-    Content:
-    {content}
+    total_prompt = sum(int(log['prompt_tokens']) for log in logs)
+    total_completion = sum(int(log['completion_tokens']) for log in logs)
+    total_tokens = sum(int(log['total_tokens']) for log in logs)
+    total_cost = sum(float(log['cost'].replace('$', '')) for log in logs)
     
-    Guidelines based on level:
-    - tldr: 2-3 sentences capturing the most important points
-    - detailed: Key points with brief explanations (1-2 paragraphs)
-    - comprehensive: Full analysis with examples and connections
-    
-    Focus areas based on selection:
-    - concepts: Core theories and principles
-    - examples: Practical applications and cases
-    - applications: Real-world usage and implementation
-    
-    Format the summary in markdown with appropriate headings and structure.
-    Use bullet points for clarity when appropriate.
-    Include specific examples from the content when relevant.
-    """
-    
-    response = llm.invoke([("human", summary_prompt)])
-    return response.content, response.content 
+    return {
+        'total_prompt_tokens': total_prompt,
+        'total_completion_tokens': total_completion,
+        'total_tokens': total_tokens,
+        'total_cost': total_cost
+    } 

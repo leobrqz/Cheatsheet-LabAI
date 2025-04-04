@@ -124,7 +124,7 @@ def fix_markdown_formatting(text):
     
     return text
 
-def construct_input_prompt(llm, prompt, theme, subject, complexity, audience, style, output_format, exemplified, template_name):
+def construct_input_prompt(llm, prompt, theme, subject, complexity, audience, style, exemplified, template_name):
     """Constructs the user input message for the LLM, summarizing key fields first."""
     summarized_input = summarize_inputs(llm, prompt, theme, subject, complexity, audience)
     
@@ -144,7 +144,6 @@ def construct_input_prompt(llm, prompt, theme, subject, complexity, audience, st
     - Complexity: {complexity}
     - Audience: {audience}
     - Style: {style}
-    - Format: {output_format} 
     
     Structure:
     {structure}
@@ -156,10 +155,10 @@ def construct_input_prompt(llm, prompt, theme, subject, complexity, audience, st
     4. Use consistent list formatting
     """
 
-def generate_response(prompt, theme, subject, template_name, style, output_format, exemplified, complexity, audience):
+def generate_response(prompt, theme, subject, template_name, style, exemplified, complexity, audience, enforce_formatting):
     """Generates a cheatsheet response based on user inputs."""
     system_message = construct_instruction_prompt()
-    user_message = construct_input_prompt(llm, prompt, theme, subject, complexity, audience, style, output_format, exemplified, template_name)
+    user_message = construct_input_prompt(llm, prompt, theme, subject, complexity, audience, style, exemplified, template_name)
     
     messages = [
         ("system", system_message),
@@ -168,8 +167,11 @@ def generate_response(prompt, theme, subject, template_name, style, output_forma
     
     response = llm.invoke(messages)
     
-    # Fix markdown formatting issues
-    formatted_response = fix_markdown_formatting(response.content)
+    # Fix markdown formatting issues if enabled
+    if enforce_formatting:
+        formatted_response = fix_markdown_formatting(response.content)
+    else:
+        formatted_response = response.content
     
     # Return both the formatted response and the raw text
     return formatted_response, formatted_response
@@ -190,10 +192,12 @@ with gr.Blocks() as demo:
             template_name = gr.Dropdown(choices=template_choices, label="Template", value="Custom")
             
             style = gr.Dropdown(choices=["Minimal", "Detailed", "Summarized"], label="Style")
-            output_format = gr.Dropdown(choices=["Only markdown", "Plain text with markdown"], label="Output Format")
             exemplified = gr.Dropdown(choices=["Yes include examples", "No do not include examples"], label="Exemplified")
             complexity = gr.Dropdown(choices=["Basic", "Intermediate", "Advanced"], label="Complexity Level")
             audience = gr.Dropdown(choices=["Student", "Intermediate", "Professional"], label="Target Audience")
+            
+            # Add checkbox for markdown formatting
+            enforce_formatting = gr.Checkbox(label="Enforce Markdown Formatting", value=True)
             
             submit_btn = gr.Button("Generate Cheatsheet")
 
@@ -222,7 +226,7 @@ with gr.Blocks() as demo:
     # Connect the button to the function with loading state
     submit_btn.click(
         fn=generate_response,
-        inputs=[prompt, theme, subject, template_name, style, output_format, exemplified, complexity, audience],
+        inputs=[prompt, theme, subject, template_name, style, exemplified, complexity, audience, enforce_formatting],
         outputs=[markdown_output, raw_output],
         show_progress=True
     )

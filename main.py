@@ -49,61 +49,57 @@ TEMPLATES = {
 def construct_instruction_prompt():
     """Constructs the system instruction message for the LLM."""
     return ("""
-    You are a helpful assistant that generates a cheatsheet based on the user's input.
+    You are a cheatsheet generator that creates concise, well-structured content based on user inputs.
     
-    Here are your instructions:
-    The cheatsheet should be concise, informative, and tailored to the user's specified parameters.
-    The cheatsheet should be well-structured and easy to read.
-    The content should be relevant to the prompt and adhere to the specified theme and subject.
-    The cheatsheet should reflect the complexity level and target audience specified by the user.
-    The cheatsshet should always include references to the sources of the information provided or reccomendations to the user to read more about the topic.   
+    Core Requirements:
+    - Create concise, informative content tailored to user parameters
+    - Ensure well-structured, readable output
+    - Maintain relevance to prompt, theme, and subject
+    - Match complexity level and target audience
+    - Always include references or recommendations for further reading
     
-    Always follow the formatting and style guidelines provided by "style:" and "output_format:". 
-    Make sure to include examples if the user has requested them but only if they asked for it.
+    Parameter Guide:
+    - Prompt: User's specific request
+    - Theme: Overall topic area
+    - Subject: Specific focus within theme
+    - Exemplified: Include examples only if requested
+    - Complexity: Detail depth (Basic/Intermediate/Advanced)
+    - Audience: Target knowledge level (Student/Intermediate/Professional)
+    - Style: Tone and presentation approach
+    - Output Format: Presentation format (markdown/plain text)
     
-    Here is the explanation of the parameters:
-    - user prompt = What the user asked 
-    - Theme = What the cheatsheet is about
-    - Subject = The specific area of focus within the theme
-
-    Here are the formatting and style guidelines:
-    - Exemplified = If it should include examples or not
-    - Complexity Level = How far and in depth the level of detail and complexity in the content must be
-    - Target Audience = The intended audience for the cheatsheet
-    - Style = The overall style and tone of the cheatsheet
-    - Output Format = The format in which the cheatsheet should be presented (e.g., markdown, plain text)
+    Template Usage:
+    Follow the provided structure template to organize content.
     
-    Here is what the template structure functionality is:
-    Use the Structure provided by the structure template to structure the cheatsheet.
-    
-    IMPORTANT MARKDOWN FORMATTING GUIDELINES:
-    1. Always use proper heading levels (## for main sections, ### for subsections)
-    2. For code blocks, always use triple backticks with language specification: ```python
-    3. Ensure proper spacing between sections (add blank lines)
-    4. Use proper list formatting with consistent indentation
-    5. For nested lists, use proper indentation and consistent markers
-    6. When using code examples, always wrap them in proper code blocks
-    7. Use bold (**) and italic (*) formatting consistently
-    8. Ensure proper escaping of special characters in code blocks
+    MARKDOWN FORMATTING:
+    1. Use proper heading levels (## main, ### sub)
+    2. Format code blocks with triple backticks and language: ```python
+    3. Add blank lines between sections
+    4. Use consistent list formatting and indentation
+    5. Maintain proper nested list structure
+    6. Wrap code examples in proper blocks
+    7. Apply bold (**) and italic (*) consistently
+    8. Escape special characters in code blocks
     """)
 
 def summarize_inputs(llm, prompt, theme, subject, complexity, audience):
     """Summarizes the prompt, theme, and subject while considering complexity and audience."""
     summary_prompt = (
         f"""
-        Given the following user input details:
+        Summarize these cheatsheet parameters:
         - Prompt: {prompt}
         - Theme: {theme}
         - Subject: {subject}
-        - Complexity Level: {complexity}
-        - Target Audience: {audience}
+        - Complexity: {complexity}
+        - Audience: {audience}
         
-        Generate a concise, structured summary that captures the essential elements required to create a cheatsheet.
-        This is NOT the cheatsheet itself, but a refined version of the user input to ensure clarity and relevance.
-        Adjust detail levels appropriately:
-        - For higher complexity, highlight deeper insights and advanced technical points.
-        - For lower complexity, focus on key concepts with practical explanations.
-        - Adapt explanations to the audience's knowledge level, ensuring accessibility for beginners and depth for experts.
+        Create a concise, structured summary that captures essential elements for the cheatsheet.
+        This is NOT the cheatsheet itself, but a refined version of the user input.
+        
+        Adjust detail levels based on:
+        - Higher complexity: Focus on deeper insights and advanced technical points
+        - Lower complexity: Emphasize key concepts with practical explanations
+        - Audience level: Ensure accessibility for beginners or depth for experts
         """
     )
     response = llm.invoke([("human", summary_prompt)])
@@ -140,24 +136,24 @@ def construct_input_prompt(llm, prompt, theme, subject, complexity, audience, st
             structure = template["structure"]
     
     return f"""
-    Create a cheatsheet based on the following parameters:
+    Create a cheatsheet based on:
     - Summarized Input: {summarized_input}
 
-    Here are the formatting and style guidelines:
+    Style Parameters:
     - Exemplified: {exemplified}
-    - Complexity Level: {complexity}
-    - Target Audience: {audience}
+    - Complexity: {complexity}
+    - Audience: {audience}
     - Style: {style}
-    - Output Format: {output_format} 
+    - Format: {output_format} 
     
-    **Structural Guidelines:**
+    Structure:
     {structure}
     
-    IMPORTANT: Ensure proper markdown formatting with:
-    1. Consistent heading levels (## for main sections, ### for subsections)
-    2. Proper code blocks with language specification (```python)
-    3. Adequate spacing between sections
-    4. Proper list formatting and indentation
+    FORMATTING REQUIREMENTS:
+    1. Use proper heading levels (## main, ### sub)
+    2. Format code blocks with language spec (```python)
+    3. Add spacing between sections
+    4. Use consistent list formatting
     """
 
 def generate_response(prompt, theme, subject, template_name, style, output_format, exemplified, complexity, audience):

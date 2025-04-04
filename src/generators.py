@@ -3,23 +3,42 @@ import re
 from config import API_KEY, MODEL_NAME, TEMPERATURE, TEMPLATES
 from langchain_community.callbacks.manager import get_openai_callback
 from datetime import datetime
+from database import Database
 
-# Initialize token tracker
+# Initialize database
+db = Database()
+
 class TokenUsageTracker:
     def __init__(self):
         self.logs = []
     
-    def add_log(self, function_name, tokens_data):
-        self.logs.append({
-            'timestamp': datetime.now().strftime('%H:%M:%S'),
-            'function': function_name,
-            'prompt_tokens': tokens_data.prompt_tokens,
-            'completion_tokens': tokens_data.completion_tokens,
-            'total_tokens': tokens_data.total_tokens,
-            'cost': f"${tokens_data.total_cost:.4f}"
-        })
+    def add_log(self, function_name, prompt_tokens, completion_tokens, total_tokens, cost):
+        """Add a log entry to both memory and database."""
+        log_entry = {
+            'timestamp': datetime.now().isoformat(),
+            'function_name': function_name,
+            'prompt_tokens': prompt_tokens,
+            'completion_tokens': completion_tokens,
+            'total_tokens': total_tokens,
+            'cost': cost
+        }
+        self.logs.append(log_entry)
+        # Also store in database
+        db.add_log(function_name, prompt_tokens, completion_tokens, total_tokens, cost)
     
     def get_logs(self):
+        """Get logs from both memory and database."""
+        # Get logs from database
+        db_logs = db.get_logs()
+        # Update memory logs with database logs
+        self.logs = [{
+            'timestamp': log[0],
+            'function_name': log[1],
+            'prompt_tokens': log[2],
+            'completion_tokens': log[3],
+            'total_tokens': log[4],
+            'cost': log[5]
+        } for log in db_logs]
         return self.logs
 
 # Create global token tracker instance
@@ -151,7 +170,7 @@ def generate_cheatsheet(prompt, theme, subject, template_name, style, exemplifie
         response = llm.invoke(messages)
         
         # Track token usage
-        token_tracker.add_log('generate_cheatsheet', cb)
+        token_tracker.add_log('generate_cheatsheet', cb.prompt_tokens, cb.completion_tokens, cb.total_tokens, cb.total_cost)
         
         # Fix markdown formatting issues if enabled
         if enforce_formatting:
@@ -224,7 +243,7 @@ def generate_quiz(content, quiz_type, difficulty, count):
         response = llm.invoke([("human", quiz_prompt)])
         
         # Track token usage
-        token_tracker.add_log('generate_quiz', cb)
+        token_tracker.add_log('generate_quiz', cb.prompt_tokens, cb.completion_tokens, cb.total_tokens, cb.total_cost)
         
         return response.content, response.content
 
@@ -262,7 +281,7 @@ def generate_flashcards(content, count):
         response = llm.invoke([("human", flashcard_prompt)])
         
         # Track token usage
-        token_tracker.add_log('generate_flashcards', cb)
+        token_tracker.add_log('generate_flashcards', cb.prompt_tokens, cb.completion_tokens, cb.total_tokens, cb.total_cost)
         
         return response.content, response.content
 
@@ -293,7 +312,7 @@ def generate_practice_problems(content, problem_type, count):
         response = llm.invoke([("human", problem_prompt)])
         
         # Track token usage
-        token_tracker.add_log('generate_practice_problems', cb)
+        token_tracker.add_log('generate_practice_problems', cb.prompt_tokens, cb.completion_tokens, cb.total_tokens, cb.total_cost)
         
         return response.content, response.content
 
@@ -324,7 +343,7 @@ def generate_summary(content, level, focus):
         response = llm.invoke([("human", summary_prompt)])
         
         # Track token usage
-        token_tracker.add_log('generate_summary', cb)
+        token_tracker.add_log('generate_summary', cb.prompt_tokens, cb.completion_tokens, cb.total_tokens, cb.total_cost)
         
         return response.content, response.content
 
@@ -333,24 +352,11 @@ def get_token_logs():
     return token_tracker.get_logs()
 
 def calculate_total_usage():
-    """Calculates total token usage and cost."""
-    logs = token_tracker.get_logs()
-    if not logs:
-        return {
-            'total_prompt_tokens': 0,
-            'total_completion_tokens': 0,
-            'total_tokens': 0,
-            'total_cost': 0.0
-        }
-    
-    total_prompt = sum(int(log['prompt_tokens']) for log in logs)
-    total_completion = sum(int(log['completion_tokens']) for log in logs)
-    total_tokens = sum(int(log['total_tokens']) for log in logs)
-    total_cost = sum(float(log['cost'].replace('$', '')) for log in logs)
-    
+    """Calculate total token usage and cost from database."""
+    total_prompt_tokens, total_completion_tokens, total_tokens, total_cost = db.get_total_usage()
     return {
-        'total_prompt_tokens': total_prompt,
-        'total_completion_tokens': total_completion,
-        'total_tokens': total_tokens,
-        'total_cost': total_cost
+        'total_prompt_tokens': total_prompt_tokens or 0,
+        'total_completion_tokens': total_completion_tokens or 0,
+        'total_tokens': total_tokens or 0,
+        'total_cost': total_cost or 0
     } 

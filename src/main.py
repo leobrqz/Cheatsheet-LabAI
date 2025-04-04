@@ -76,7 +76,7 @@ def clear_loading_message(cheatsheet, raw_cheatsheet, quiz, raw_quiz, flashcards
     return "", "", "", "", ""  # Only clear the 5 loading indicators
 
 def update_logs():
-    """Updates the token usage logs and statistics."""
+    """Update the logs display with the latest token usage data."""
     logs = get_token_logs()
     if not logs:
         return [], "No usage data available"
@@ -84,7 +84,7 @@ def update_logs():
     # Convert logs to list format for dataframe
     log_data = [[
         log['timestamp'],
-        log['function'],
+        log['function_name'],
         log['prompt_tokens'],
         log['completion_tokens'],
         log['total_tokens'],

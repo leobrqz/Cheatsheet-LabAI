@@ -1,18 +1,6 @@
 from dotenv import load_dotenv
 import gradio as gr
-from config import (
-    TEMPLATES,
-    LEARNING_FEATURES,
-    AI_FEATURES,
-    CSS,
-    STYLE_CHOICES,
-    EXEMPLIFIED_CHOICES,
-    COMPLEXITY_CHOICES,
-    AUDIENCE_CHOICES,
-    API_KEY,
-    MODEL_NAME,
-    TEMPERATURE,
-)
+from config import config
 from generators import (
     generate_cheatsheet,
     generate_quiz,
@@ -172,11 +160,11 @@ def update_usage_by_function():
     
     # Create a markdown table for function usage
     table = "### Usage Statistics by Function\n\n"
-    table += "| Function | Prompt Tokens | Completion Tokens | Total Tokens | Cost |\n"
-    table += "|----------|---------------|------------------|--------------|------|\n"
+    table += "| Function | Total Tokens | Cost |\n"
+    table += "|----------|--------------|------|\n"
     
-    for func in function_usage:
-        table += f"| {func['function_name']} | {func['total_prompt_tokens']:,} | {func['total_completion_tokens']:,} | {func['total_tokens']:,} | ${func['total_cost']:.4f} |\n"
+    for function_name, stats in function_usage.items():
+        table += f"| {function_name} | {stats['total_tokens']:,} | ${stats['total_cost']:.4f} |\n"
     
     return table
 
@@ -222,7 +210,7 @@ def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_
         return [], f"Error: {str(e)}"
 
 # Create Gradio interface using Blocks
-with gr.Blocks(css=CSS) as demo:
+with gr.Blocks(css=config.CSS) as demo:
     gr.Markdown("# AI Cheatsheet Generator")
     
     # Hidden state to store summarized content
@@ -235,27 +223,27 @@ with gr.Blocks(css=CSS) as demo:
                 theme = gr.Textbox(label="Theme", placeholder="Enter the theme...")
                 subject = gr.Textbox(label="Subject", placeholder="Enter the subject...")
                 template_name = gr.Dropdown(
-                    choices=list(TEMPLATES.keys()),
+                    choices=list(config.TEMPLATES.keys()),
                     label="Template",
                     value="Study Guide"
                 )
                 style = gr.Dropdown(
-                    choices=STYLE_CHOICES,
+                    choices=config.STYLE_CHOICES,
                     label="Style",
                     value="Minimal"
                 )
                 exemplified = gr.Dropdown(
-                    choices=EXEMPLIFIED_CHOICES,
+                    choices=config.EXEMPLIFIED_CHOICES,
                     label="Include Examples",
                     value="Yes include examples"
                 )
                 complexity = gr.Dropdown(
-                    choices=COMPLEXITY_CHOICES,
+                    choices=config.COMPLEXITY_CHOICES,
                     label="Complexity",
                     value="Intermediate"
                 )
                 audience = gr.Dropdown(
-                    choices=AUDIENCE_CHOICES,
+                    choices=config.AUDIENCE_CHOICES,
                     label="Target Audience",
                     value="Student"
                 )
@@ -283,13 +271,13 @@ with gr.Blocks(css=CSS) as demo:
             with gr.Row():
                 with gr.Column(scale=1):
                     quiz_type = gr.Dropdown(
-                        choices=LEARNING_FEATURES["Quiz Generation"]["types"],
+                        choices=config.LEARNING_FEATURES["Quiz Generation"]["types"],
                         label="Quiz Type",
                         value="multiple_choice"
                     )
                 with gr.Column(scale=1):
                     difficulty = gr.Dropdown(
-                        choices=LEARNING_FEATURES["Quiz Generation"]["difficulty"],
+                        choices=config.LEARNING_FEATURES["Quiz Generation"]["difficulty"],
                         label="Difficulty",
                         value="intermediate"
                     )
@@ -341,7 +329,7 @@ with gr.Blocks(css=CSS) as demo:
             with gr.Row():
                 with gr.Column(scale=1):
                     problem_type = gr.Dropdown(
-                        choices=LEARNING_FEATURES["Practice Problems"]["types"],
+                        choices=config.LEARNING_FEATURES["Practice Problems"]["types"],
                         label="Problem Type",
                         value="exercises"
                     )
@@ -372,13 +360,13 @@ with gr.Blocks(css=CSS) as demo:
             with gr.Row():
                 with gr.Column(scale=1):
                     summary_level = gr.Dropdown(
-                        choices=AI_FEATURES["Smart Summarization"]["levels"],
+                        choices=config.AI_FEATURES["Smart Summarization"]["levels"],
                         label="Summary Level",
                         value="detailed"
                     )
                 with gr.Column(scale=1):
                     summary_focus = gr.Dropdown(
-                        choices=AI_FEATURES["Smart Summarization"]["focus"],
+                        choices=config.AI_FEATURES["Smart Summarization"]["focus"],
                         label="Focus Area",
                         value="concepts"
                     )
@@ -409,9 +397,10 @@ with gr.Blocks(css=CSS) as demo:
             total_stats = gr.Markdown("No usage data available")
         
         with gr.Accordion("Advanced Query Options", open=False):
-            gr.Markdown("### Combined Filters")
+            gr.Markdown("## Combined Filters")
             with gr.Row():
                 with gr.Column(scale=1):
+                    gr.Markdown("### Date Range")
                     start_date = gr.Textbox(
                         label="Start Date (YYYY-MM-DD)",
                         value=(datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
@@ -420,12 +409,15 @@ with gr.Blocks(css=CSS) as demo:
                         label="End Date (YYYY-MM-DD)",
                         value=datetime.now().strftime("%Y-%m-%d")
                     )
+                with gr.Column(scale=1):
+                    gr.Markdown("### Function")
                     function_dropdown = gr.Dropdown(
                         choices=get_unique_functions(),
                         label="Select Function",
                         value=None
                     )
                 with gr.Column(scale=1):
+                    gr.Markdown("### Token Range")
                     min_tokens = gr.Number(
                         label="Minimum Tokens",
                         value=0,
@@ -436,6 +428,8 @@ with gr.Blocks(css=CSS) as demo:
                         value=10000,
                         precision=0
                     )
+                with gr.Column(scale=1):
+                    gr.Markdown("### Cost Range")
                     min_cost = gr.Number(
                         label="Minimum Cost ($)",
                         value=0.0,
@@ -446,17 +440,19 @@ with gr.Blocks(css=CSS) as demo:
                         value=1.0,
                         precision=4
                     )
-                with gr.Column(scale=1):
-                    limit = gr.Slider(
-                        minimum=10,
-                        maximum=1000,
-                        value=100,
-                        step=10,
-                        label="Limit Results"
-                    )
-                    apply_filters = gr.Button("Apply Filters")
-            
-            gr.Markdown("### Individual Filters")
+            gr.Markdown("---")
+            gr.Markdown("## Limit Results")
+            with gr.Row():
+                limit = gr.Slider(
+                    minimum=10,
+                    maximum=1000,
+                    value=100,
+                    step=10,
+                    label="Limit Results"
+                )
+                apply_filters = gr.Button("Apply Filters")
+            gr.Markdown("---")
+            gr.Markdown("## Individual Filters")
             with gr.Row():
                 date_limit = gr.Slider(
                     minimum=10,
@@ -466,7 +462,6 @@ with gr.Blocks(css=CSS) as demo:
                     label="Limit Results"
                 )
                 query_by_date = gr.Button("Query by Date Range")
-            
             with gr.Row():
                 function_limit = gr.Slider(
                     minimum=10,
@@ -476,7 +471,6 @@ with gr.Blocks(css=CSS) as demo:
                     label="Limit Results"
                 )
                 query_by_function = gr.Button("Query by Function")
-            
             with gr.Row():
                 token_limit = gr.Slider(
                     minimum=10,
@@ -486,7 +480,6 @@ with gr.Blocks(css=CSS) as demo:
                     label="Limit Results"
                 )
                 query_by_tokens = gr.Button("Query by Token Range")
-            
             with gr.Row():
                 cost_limit = gr.Slider(
                     minimum=10,

@@ -1,6 +1,6 @@
 from typing import Optional
 from langchain_openai import ChatOpenAI
-from config import API_KEY, MODEL_NAME, TEMPERATURE
+from config import config
 
 class OpenAIClient:
     _instance: Optional[ChatOpenAI] = None
@@ -8,9 +8,14 @@ class OpenAIClient:
     @classmethod
     def get_instance(cls) -> ChatOpenAI:
         if cls._instance is None:
-            if not API_KEY:
+            api_key = config.get_api_key()
+            if not api_key:
                 raise ValueError("OPENAI_API_KEY environment variable is not set")
-            cls._instance = ChatOpenAI(model=MODEL_NAME, api_key=API_KEY, temperature=TEMPERATURE)
+            cls._instance = ChatOpenAI(
+                model=config.get_model_name(), 
+                api_key=api_key, 
+                temperature=config.get_temperature()
+            )
         return cls._instance
 
 class DatabaseInstance:

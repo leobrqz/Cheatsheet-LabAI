@@ -1,0 +1,30 @@
+{
+  "learning_features": {
+    "Quiz Generation": {
+      "types": ["multiple_choice", "fill_blanks", "true_false"],
+      "difficulty": ["basic", "intermediate", "advanced"],
+      "count": 5
+    },
+    "Flashcards": {
+      "format": "term -> definition",
+      "categories": "auto-tagged",
+      "count": 10
+    },
+    "Practice Problems": {
+      "types": ["exercises", "code_challenges", "scenarios"],
+      "solutions": "included but hidden",
+      "count": 3
+    }
+  },
+  "ai_features": {
+    "Smart Summarization": {
+      "levels": ["tldr", "detailed", "comprehensive"],
+      "focus": ["concepts", "examples", "applications"]
+    },
+    "Content Enhancement": {
+      "suggestions": ["examples", "diagrams", "references"],
+      "citations": "auto-generated",
+      "fact_checking": true
+    }
+  }
+} 

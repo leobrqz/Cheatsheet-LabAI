@@ -11,20 +11,6 @@ class LogQueryBuilder:
         self.conditions: List[str] = []
         self.parameters: List[Any] = []
     
-    def _sanitize_string(self, value: str) -> str:
-        """
-        Sanitize string input to prevent SQL injection.
-        
-        Args:
-            value: String to sanitize
-            
-        Returns:
-            Sanitized string
-        """
-        # Remove any SQL injection attempts
-        value = re.sub(r'[\'";\\]', '', value)
-        return value.strip()
-    
     def _validate_date(self, date_str: str) -> bool:
         """
         Validate date string format.
@@ -88,12 +74,11 @@ class LogQueryBuilder:
         Raises:
             ValueError: If function name is invalid
         """
-        sanitized_name = self._sanitize_string(function_name)
-        if not sanitized_name:
+        if not isinstance(function_name, str) or not function_name.strip():
             raise ValueError("Invalid function name")
             
         self.conditions.append("function_name = ?")
-        self.parameters.append(sanitized_name)
+        self.parameters.append(function_name.strip())
         return self
     
     def add_token_range(self, min_tokens: int, max_tokens: int) -> 'LogQueryBuilder':

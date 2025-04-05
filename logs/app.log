@@ -1,0 +1,4 @@
+{"timestamp": "2025-04-04T22:31:22.068541", "level": "INFO", "logger": "config", "message": "Configuration loaded successfully", "module": "config", "function": "_load_config", "line": 138}
+{"timestamp": "2025-04-04T22:31:56.787193", "level": "INFO", "logger": "config", "message": "Configuration loaded successfully", "module": "config", "function": "_load_config", "line": 138}
+{"timestamp": "2025-04-04T22:31:58.092511", "level": "ERROR", "logger": "generators", "message": "Failed to get_unique_functions: 'DatabaseInstance' object has no attribute 'get_unique_functions'", "module": "generators", "function": "wrapper", "line": 116}
+{"timestamp": "2025-04-04T22:31:58.093038", "level": "ERROR", "logger": "generators", "message": "Failed to get unique functions: 'DatabaseInstance' object has no attribute 'get_unique_functions'", "module": "generators", "function": "get_unique_functions", "line": 532}

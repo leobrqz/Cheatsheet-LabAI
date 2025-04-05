@@ -9,6 +9,7 @@ from logger import get_logger
 import time
 from functools import wraps
 import backoff
+import threading
 
 # Get logger instance
 logger = get_logger(__name__)
@@ -21,21 +22,23 @@ class RateLimiter:
     def __init__(self, calls_per_minute: int = 60):
         self.calls_per_minute = calls_per_minute
         self.calls = []
+        self._lock = threading.Lock()  # Add thread lock
     
     def wait_if_needed(self):
         """Wait if rate limit would be exceeded."""
-        now = time.time()
-        # Remove calls older than 1 minute
-        self.calls = [call for call in self.calls if now - call < 60]
-        
-        if len(self.calls) >= self.calls_per_minute:
-            # Wait until oldest call is 1 minute old
-            sleep_time = 60 - (now - self.calls[0])
-            if sleep_time > 0:
-                logger.debug(f"Rate limit reached, waiting {sleep_time:.2f} seconds")
-                time.sleep(sleep_time)
-        
-        self.calls.append(now)
+        with self._lock:  # Use lock for thread safety
+            now = time.time()
+            # Remove calls older than 1 minute
+            self.calls = [call for call in self.calls if now - call < 60]
+            
+            if len(self.calls) >= self.calls_per_minute:
+                # Wait until oldest call is 1 minute old
+                sleep_time = 60 - (now - self.calls[0])
+                if sleep_time > 0:
+                    logger.debug(f"Rate limit reached, waiting {sleep_time:.2f} seconds")
+                    time.sleep(sleep_time)
+            
+            self.calls.append(now)
     
     def __enter__(self):
         """Support for context manager protocol."""

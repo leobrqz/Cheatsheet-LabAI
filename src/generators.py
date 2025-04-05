@@ -4,7 +4,7 @@ from config import config
 from langchain_community.callbacks.manager import get_openai_callback
 from datetime import datetime
 from singletons import OpenAIClient, DatabaseInstance
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Callable, Union
 from logger import get_logger
 import time
 from functools import wraps
@@ -678,9 +678,18 @@ def calculate_total_usage() -> Dict[str, Any]:
     logs = get_token_logs()
     return LogFormatter.calculate_totals(logs)
 
-def calculate_total_usage_by_function() -> Dict[str, Dict[str, Any]]:
-    """Calculate total token usage and cost by function."""
-    logs = get_token_logs()
+def calculate_total_usage_by_function(logs: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Dict[str, Any]]:
+    """Calculate total token usage and cost by function.
+    
+    Args:
+        logs: Optional list of log entries to calculate usage from. If None, gets all logs.
+        
+    Returns:
+        Dictionary containing total tokens and cost by function
+    """
+    if logs is None:
+        logs = get_token_logs()
+        
     function_usage = {}
     
     for log in logs:

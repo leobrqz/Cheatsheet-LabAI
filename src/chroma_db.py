@@ -483,8 +483,9 @@ class ChromaDatabase:
             logger.debug("No filters set, returning all logs")
             return self.get_logs(limit)
         
-        # Create the where clause with all conditions
-        where_clause = {"$and": query_builder.conditions}
+        # Get the query dictionary
+        query = query_builder.get_query()
+        where_clause = query.get("$and", {})
         
         logger.debug(f"Executing query with where clause: {where_clause}")
         

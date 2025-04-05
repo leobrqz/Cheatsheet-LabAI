@@ -189,6 +189,41 @@ class LogQueryBuilder:
         """
         return bool(self.conditions)
     
+    @handle_query_errors
+    def set_limit(self, limit: int) -> 'LogQueryBuilder':
+        """Set the limit for the number of results.
+        
+        Args:
+            limit: Maximum number of results to return
+            
+        Returns:
+            Self for method chaining
+        """
+        if limit < 0:
+            raise InvalidRangeError("Limit must be non-negative")
+            
+        self.limit = limit
+        return self
+    
+    def get_query(self) -> Dict[str, Any]:
+        """Get the query dictionary.
+        
+        Returns:
+            Dictionary containing the query conditions and limit
+        """
+        query = {"$and": self.conditions} if self.conditions else {}
+        if hasattr(self, 'limit'):
+            query['$limit'] = self.limit
+        return query
+    
+    def build(self) -> 'LogQueryBuilder':
+        """Build the query and return the builder instance.
+        
+        Returns:
+            Self for method chaining
+        """
+        return self
+    
     def __str__(self) -> str:
         """String representation of the query builder."""
         return f"LogQueryBuilder(conditions={self.conditions})" 

@@ -332,7 +332,7 @@ def update_logs():
         for log in logs:
             formatted_logs.append([
                 log['timestamp'],
-                log['function'],
+                log['function_name'],
                 log['prompt_tokens'],
                 log['completion_tokens'],
                 log['total_tokens'],
@@ -341,8 +341,18 @@ def update_logs():
         
         # Calculate total usage by function
         usage_by_function = calculate_total_usage_by_function()
+        if not usage_by_function:
+            return formatted_logs, "No usage data available by function"
         
-        return formatted_logs, usage_by_function
+        # Format the usage statistics as a markdown table
+        table = "### Usage by Function\n\n"
+        table += "| Function | Total Tokens | Total Cost |\n"
+        table += "|----------|--------------|------------|\n"
+        
+        for func_name, stats in usage_by_function.items():
+            table += f"| {func_name} | {stats['total_tokens']:,} | ${stats['total_cost']:.4f} |\n"
+        
+        return formatted_logs, table
     except Exception as e:
         logger.error(f"Error updating logs: {e}")
         return [], f"Error updating logs: {str(e)}"
@@ -360,16 +370,16 @@ def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_
         query_builder = LogQueryBuilder()
         
         if start_date:
-            query_builder.add_date_range_filter(start_date, end_date or datetime.now().strftime('%Y-%m-%d'))
+            query_builder.add_date_range(start_date, end_date or datetime.now().strftime('%Y-%m-%d'))
         
         if function_name:
             query_builder.add_function_filter(function_name)
         
         if min_tokens is not None:
-            query_builder.add_token_range_filter(min_tokens, max_tokens)
+            query_builder.add_token_range(min_tokens, max_tokens)
         
         if min_cost is not None:
-            query_builder.add_cost_range_filter(min_cost, max_cost)
+            query_builder.add_cost_range(min_cost, max_cost)
         
         if limit:
             query_builder.set_limit(limit)
@@ -382,7 +392,7 @@ def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_
         for log in logs:
             formatted_logs.append([
                 log['timestamp'],
-                log['function'],
+                log['function_name'],
                 log['prompt_tokens'],
                 log['completion_tokens'],
                 log['total_tokens'],
@@ -391,8 +401,18 @@ def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_
         
         # Calculate total usage by function for filtered logs
         usage_by_function = calculate_total_usage_by_function(logs)
+        if not usage_by_function:
+            return formatted_logs, "No usage data available by function"
         
-        return formatted_logs, usage_by_function
+        # Format the usage statistics as a markdown table
+        table = "### Usage by Function\n\n"
+        table += "| Function | Total Tokens | Total Cost |\n"
+        table += "|----------|--------------|------------|\n"
+        
+        for func_name, stats in usage_by_function.items():
+            table += f"| {func_name} | {stats['total_tokens']:,} | ${stats['total_cost']:.4f} |\n"
+        
+        return formatted_logs, table
     except Exception as e:
         logger.error(f"Error applying filters: {e}")
         return [], f"Error applying filters: {str(e)}"
@@ -401,7 +421,18 @@ def update_usage_by_function():
     """Update the usage by function statistics."""
     try:
         usage_by_function = calculate_total_usage_by_function()
-        return usage_by_function
+        if not usage_by_function:
+            return "No usage data available by function"
+        
+        # Format the usage statistics as a markdown table
+        table = "### Usage by Function\n\n"
+        table += "| Function | Total Tokens | Total Cost |\n"
+        table += "|----------|--------------|------------|\n"
+        
+        for func_name, stats in usage_by_function.items():
+            table += f"| {func_name} | {stats['total_tokens']:,} | ${stats['total_cost']:.4f} |\n"
+        
+        return table
     except Exception as e:
         logger.error(f"Error updating usage by function: {e}")
         return f"Error updating usage by function: {str(e)}"

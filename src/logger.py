@@ -42,7 +42,8 @@ class LoggingManager:
     def _setup_logging(self):
         """Set up logging configuration for the application."""
         # Create logs directory if it doesn't exist
-        os.makedirs('logs', exist_ok=True)
+        log_dir = os.path.join('..', 'data', 'logs')
+        os.makedirs(log_dir, exist_ok=True)
         
         # Configure root logger
         root_logger = logging.getLogger()
@@ -50,7 +51,7 @@ class LoggingManager:
         
         # Create rotating file handler
         file_handler = RotatingFileHandler(
-            'logs/app.log',
+            os.path.join(log_dir, 'app.log'),
             maxBytes=10*1024*1024,  # 10MB
             backupCount=5,
             encoding='utf-8'

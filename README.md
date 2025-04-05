@@ -7,54 +7,28 @@
 
 An AI-powered tool that generates customized educational content using OpenAI's GPT models. Create comprehensive cheatsheets, quizzes, flashcards, and practice problems tailored to your learning needs.
 
+## 🔄 Recent Updates
+
+### Architecture & Performance Improvements
+- 🚀 Implemented thread-safe ChromaDB operations with connection pooling and exponential backoff
+- 🔍 Enhanced date validation with ISO 8601 support and timezone-aware timestamps
+- ⚡ Added custom exception hierarchy with retry mechanisms and comprehensive error logging
+- 🔒 Implemented resource cleanup with proper thread-local storage management
+
+
 ## ✨ Features
 
 ### 📚 Content Generation
-- **Smart Cheatsheets**
-  - Markdown formatting with syntax highlighting
-  - Customizable sections and depth
-  - Code examples with explanations
-  - Visual diagrams and tables
-
-- **Interactive Quizzes**
-  - Multiple-choice questions with detailed explanations
-  - Adjustable difficulty levels
-  - Topic-specific question generation
-  - Performance tracking
-
-- **Study Flashcards**
-  - Spaced repetition system
-  - Customizable card formats
-  - Progress tracking
-  - Export to various formats
-
-- **Practice Problems**
-  - Step-by-step solutions
-  - Difficulty progression
-  - Topic-specific problems
-  - Performance analytics
+- **Smart Cheatsheets**: AI-powered content generation with customizable templates, complexity levels, and audience targeting
+- **Interactive Quizzes**: Dynamic question generation with multiple formats, difficulty levels, and performance tracking
+- **Study Flashcards**: Intelligent flashcard creation with spaced repetition and customizable card formats
+- **Practice Problems**: Context-aware problem generation with difficulty progression and detailed solutions
+- **Content Summarization**: Smart content summarization with adjustable focus and detail levels
 
 ### 📊 Analytics & Debug
-- **Token Usage Tracking**
-  - Real-time monitoring
-  - Cost analysis and optimization
-  - Historical usage trends
-  - Function-specific metrics
-
-- **Vector Database Integration**
-  - ChromaDB for efficient storage
-  - Advanced querying capabilities
-  - Persistent data across sessions
-  - Thread-safe operations
-
-## 🔄 Recent Updates
-
-### Database Migration & Performance Improvements
-- 🚀 Migrated from SQLite to ChromaDB for improved vector-based querying
-- 🔒 Added thread-safe operations and automatic retry mechanisms
-- 🔍 Implemented advanced filtering capabilities for analytics
-- ⚡ Enhanced error handling and logging system
-
+- **Token Usage Tracking**: Real-time monitoring with advanced filtering and cost analysis
+- **Performance Analytics**: Function-specific metrics and usage patterns
+- **Vector Database**: Efficient storage with ChromaDB for advanced querying and analytics
 ## 🛠️ Setup Instructions
 
 ### 1. Clone Repository
@@ -91,8 +65,6 @@ docker run -p 7860:7860 --env-file .env cheatsheet-generator
 ```
 
 The application will be available at `http://localhost:7860`
-
-
 
 ## 🤝 Contributing
 Contributions are welcome! Please feel free to submit a Pull Request.

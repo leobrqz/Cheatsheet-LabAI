@@ -1,8 +1,29 @@
-.venv
+# Environment variables
 .env
-.gradio
-src/db/
+
+# Python virtual environment
+.venv
+
+# github
+.github/
+
+# Gradio cache
+.gradio/
+
+# Python cache
 **/__pycache__/
-src/logs/
-logs/
+
+# Project data
+data/logs/
+data/chroma/
 db/chroma/
+src/db/chroma/
+*.log
+*.db
+*.sqlite
+*.sqlite3
+
+
+# docs
+report.md
+code_analysis.txt

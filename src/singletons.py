@@ -1,7 +1,7 @@
 from typing import Optional
 from langchain_openai import ChatOpenAI
 from config import config
-from db.chroma_db import ChromaDatabase
+from chroma_db import ChromaDatabase
 import threading
 
 class OpenAIClient:

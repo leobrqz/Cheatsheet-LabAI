@@ -422,20 +422,57 @@ def update_usage_by_function():
     try:
         usage_by_function = calculate_total_usage_by_function()
         if not usage_by_function:
-            return "No usage data available by function"
+            stats_table = """
+            | Metric | Value |
+            |--------|-------|
+            | Total Tokens | 0 |
+            | Total Cost | $0.00 |
+            | Avg Tokens/Call | 0 |
+            | Avg Cost/Call | $0.00 |
+            """
+            return "No usage data available by function", stats_table
+        
+        # Calculate totals
+        total_tokens = sum(stats['total_tokens'] for stats in usage_by_function.values())
+        total_cost = sum(stats['total_cost'] for stats in usage_by_function.values())
+        total_calls = len(usage_by_function)
+        
+        # Calculate averages
+        avg_tokens = total_tokens / total_calls if total_calls > 0 else 0
+        avg_cost = total_cost / total_calls if total_calls > 0 else 0
         
         # Format the usage statistics as a markdown table
         table = "### Usage by Function\n\n"
-        table += "| Function | Total Tokens | Total Cost |\n"
-        table += "|----------|--------------|------------|\n"
+        table += "| Function | Total Tokens | Total Cost | % of Total |\n"
+        table += "|----------|--------------|------------|------------|\n"
         
         for func_name, stats in usage_by_function.items():
-            table += f"| {func_name} | {stats['total_tokens']:,} | ${stats['total_cost']:.4f} |\n"
+            token_percentage = (stats['total_tokens'] / total_tokens * 100) if total_tokens > 0 else 0
+            cost_percentage = (stats['total_cost'] / total_cost * 100) if total_cost > 0 else 0
+            table += f"| {func_name} | {stats['total_tokens']:,} | ${stats['total_cost']:.4f} | {token_percentage:.1f}% |\n"
         
-        return table
+        # Format the overview statistics
+        stats_table = f"""
+        | Metric | Value |
+        |--------|-------|
+        | Total Tokens | {total_tokens:,} |
+        | Total Cost | ${total_cost:.4f} |
+        | Avg Tokens/Call | {avg_tokens:,.1f} |
+        | Avg Cost/Call | ${avg_cost:.4f} |
+        """
+        
+        return table, stats_table
     except Exception as e:
         logger.error(f"Error updating usage by function: {e}")
-        return f"Error updating usage by function: {str(e)}"
+        stats_table = """
+        | Metric | Value |
+        |--------|-------|
+        | Total Tokens | 0 |
+        | Total Cost | $0.00 |
+        | Avg Tokens/Call | 0 |
+        | Avg Cost/Call | $0.00 |
+        """
+        return f"Error updating usage by function: {str(e)}", stats_table
 
 # Create Gradio interface using Blocks
 with gr.Blocks(css=config.CSS) as demo:
@@ -695,7 +732,7 @@ with gr.Blocks(css=config.CSS) as demo:
                     raw_summary_output = gr.Code(label="Raw Markdown", language="markdown")
     
     with gr.Tab("Debug Analytics", elem_classes="debug-analytics"):
-        gr.Markdown("<h1>Debug Analytics</h1>")
+        gr.Markdown("<h1 style='text-align: center; margin-bottom: 32px;'>Debug Analytics</h1>")
         
         # Token Usage Monitor Section
         with gr.Column(elem_classes="token-monitor"):
@@ -716,17 +753,33 @@ with gr.Blocks(css=config.CSS) as demo:
                 elem_classes="usage-table"
             )
             
+            gr.Markdown("<h2 style='text-align: center; margin: 32px 0 24px;'>Usage Overview</h2>")
             with gr.Row(elem_classes="usage-overview"):
-                with gr.Column(scale=3):
-                    gr.Markdown("<h3>Usage Overview</h3>")
-                    usage_by_function = gr.Markdown("No usage data available by function")
-                with gr.Column(scale=1):
-                    with gr.Row(elem_classes="action-buttons"):
-                        refresh_function_usage = gr.Button("Update Function Stats", elem_classes="action-button")
+                with gr.Column():
+                    with gr.Row():
+                        with gr.Column(scale=3):
+                            with gr.Row(elem_classes="action-buttons"):
+                                refresh_function_usage = gr.Button("🔄 Update Stats", elem_classes="action-button")
+                    
+                    with gr.Row():
+                        # Stats Overview Section (Left Column)
+                        with gr.Column(scale=1, elem_classes="stats-overview"):
+                            total_stats = gr.Markdown("""
+                            | Metric | Value |
+                            |--------|-------|
+                            | Total Tokens | 0 |
+                            | Total Cost | $0.00 |
+                            | Avg Tokens/Call | 0 |
+                            | Avg Cost/Call | $0.00 |
+                            """)
+                        
+                        # Usage by Function Section (Right Column)
+                        with gr.Column(scale=1, elem_classes="usage-details"):
+                            usage_by_function = gr.Markdown("No usage data available by function")
 
         # Query Builder Section
         with gr.Column(elem_classes="query-builder"):
-            gr.Markdown("<h2>Query Builder</h2>")
+            gr.Markdown("<h2 style='text-align: center; margin: 32px 0 24px;'>Query Builder</h2>")
             with gr.Tabs() as query_tabs:
                 with gr.TabItem("Smart Filter"):
                     with gr.Row():
@@ -1076,7 +1129,7 @@ with gr.Blocks(css=config.CSS) as demo:
 
     refresh_function_usage.click(
         update_usage_by_function,
-        outputs=usage_by_function
+        outputs=[usage_by_function, total_stats]
     )
 
     # Update function dropdown choices when logs are refreshed
@@ -1121,11 +1174,23 @@ with gr.Blocks(css=config.CSS) as demo:
         margin-bottom: 32px;
     }
 
+    .debug-analytics h1 {
+        color: #111827;
+        font-size: 2em;
+        font-weight: 600;
+    }
+
+    .debug-analytics h2 {
+        color: #1f2937;
+        font-size: 1.5em;
+        font-weight: 600;
+    }
+
     .debug-analytics .action-buttons {
         display: flex;
         justify-content: flex-end;
         gap: 12px;
-        margin-top: 8px;
+        margin: 8px 0;
     }
 
     .debug-analytics .action-button {
@@ -1144,17 +1209,72 @@ with gr.Blocks(css=config.CSS) as demo:
         border-color: #d1d5db !important;
     }
 
-    .debug-analytics .usage-table {
-        margin: 16px 0;
-        border-radius: 8px;
-        overflow: hidden;
+    .debug-analytics .usage-overview {
+        padding: 24px;
+        background-color: #f9fafb;
+        border-radius: 12px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     }
 
-    .debug-analytics .usage-overview {
-        margin-top: 24px;
+    .debug-analytics .usage-overview h3 {
+        margin-bottom: 20px;
+        color: #111827;
+        font-size: 1.5em;
+        font-weight: 600;
+    }
+
+    .debug-analytics .usage-overview .markdown {
+        margin: 12px 0;
         padding: 16px;
-        background-color: #f9fafb;
+        background-color: white;
         border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        transition: all 0.2s ease-in-out;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
+    .debug-analytics .usage-overview .markdown:hover {
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        transform: translateY(-2px);
+    }
+
+    .debug-analytics .usage-overview .markdown h3 {
+        color: #374151;
+        font-weight: 600;
+        font-size: 0.9em;
+        margin-bottom: 8px;
+    }
+
+    .debug-analytics .usage-overview .markdown p {
+        color: #2563eb;
+        font-weight: 600;
+        font-size: 1.2em;
+        margin: 0;
+    }
+
+    .debug-analytics .usage-overview .markdown table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 16px 0;
+    }
+
+    .debug-analytics .usage-overview .markdown th {
+        background-color: #f3f4f6;
+        padding: 12px;
+        text-align: left;
+        font-weight: 500;
+        color: #374151;
+        border-bottom: 2px solid #e5e7eb;
+    }
+
+    .debug-analytics .usage-overview .markdown td {
+        padding: 12px;
+        border-bottom: 1px solid #e5e7eb;
+        color: #4b5563;
+    }
+
+    .debug-analytics .usage-overview .markdown tr:hover {
+        background-color: #f9fafb;
     }
 
     .debug-analytics .query-builder {
@@ -1224,6 +1344,63 @@ with gr.Blocks(css=config.CSS) as demo:
         0% { opacity: 1; }
         50% { opacity: 0.6; }
         100% { opacity: 1; }
+    }
+
+    .debug-analytics .stats-overview {
+        margin: 0;
+        padding-right: 12px;
+    }
+
+    .debug-analytics .usage-details {
+        margin: 0;
+        padding-left: 12px;
+    }
+
+    .debug-analytics .stats-overview .markdown,
+    .debug-analytics .usage-details .markdown {
+        height: 100%;
+        background-color: white;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        padding: 16px;
+    }
+
+    .debug-analytics .stats-overview table,
+    .debug-analytics .usage-details table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .debug-analytics .stats-overview th,
+    .debug-analytics .usage-details th {
+        background-color: #f3f4f6;
+        padding: 12px;
+        text-align: left;
+        font-weight: 500;
+        color: #374151;
+        border-bottom: 2px solid #e5e7eb;
+    }
+
+    .debug-analytics .stats-overview td,
+    .debug-analytics .usage-details td {
+        padding: 12px;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .debug-analytics .stats-overview td:first-child {
+        font-weight: 500;
+        color: #374151;
+        width: 40%;
+    }
+
+    .debug-analytics .stats-overview td:last-child {
+        color: #2563eb;
+        font-weight: 500;
+    }
+
+    .debug-analytics .usage-details tr:hover {
+        background-color: #f9fafb;
     }
     </style>
     """)

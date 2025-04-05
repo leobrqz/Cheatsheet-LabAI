@@ -37,22 +37,30 @@ db = DatabaseInstance.get_instance()
 
 def generate_cheatsheet_and_summarize(prompt, theme, subject, template_name, style, exemplified, complexity, audience, enforce_formatting):
     """Generates a cheatsheet and creates a summary for use in other features."""
-    cheatsheet, raw_cheatsheet = generate_cheatsheet(
-        prompt, theme, subject, template_name, style,
-        exemplified, complexity, audience, enforce_formatting
-    )
-    
-    # Create a summary of the cheatsheet for use in other features
-    summarized_content = summarize_content_for_features(cheatsheet)
-    
-    return cheatsheet, raw_cheatsheet, summarized_content
+    try:
+        cheatsheet, raw_cheatsheet = generate_cheatsheet(
+            prompt, theme, subject, template_name, style,
+            exemplified, complexity, audience, enforce_formatting
+        )
+        
+        # Create a summary of the cheatsheet for use in other features
+        summarized_content = summarize_content_for_features(cheatsheet)
+        
+        return cheatsheet, raw_cheatsheet, summarized_content
+    except Exception as e:
+        logger.error(f"Error generating cheatsheet: {str(e)}")
+        error_message = f"Error: {str(e)}"
+        return error_message, error_message, ""
 
 def check_summarized_content(summarized_content, feature_name, generate_func, *args):
     """Checks if a cheatsheet has been generated before allowing feature generation."""
     if not summarized_content or summarized_content.strip() == "":
         return f"Please generate a cheatsheet first before using the {feature_name} feature.", ""
     
-    return generate_func(summarized_content, *args)
+    result = generate_func(summarized_content, *args)
+    if isinstance(result, tuple):
+        return result
+    return result, result  # Return both formatted and raw content if only one value is returned
 
 def quiz_with_check(summarized_content, quiz_type, difficulty, quiz_count):
     """Checks if a cheatsheet has been generated before allowing quiz generation."""
@@ -60,7 +68,11 @@ def quiz_with_check(summarized_content, quiz_type, difficulty, quiz_count):
 
 def flashcards_with_check(summarized_content, flashcard_count):
     """Checks if a cheatsheet has been generated before allowing flashcard generation."""
-    return check_summarized_content(summarized_content, "Flashcards", generate_flashcards, flashcard_count)
+    if not summarized_content or summarized_content.strip() == "":
+        return "Please generate a cheatsheet first before using the Flashcards feature.", ""
+    
+    result = generate_flashcards(summarized_content, flashcard_count)
+    return result, result  # Return both formatted and raw content
 
 def problems_with_check(summarized_content, problem_type, problem_count):
     """Checks if a cheatsheet has been generated before allowing problem generation."""
@@ -164,7 +176,8 @@ def update_usage_by_function():
     table += "|----------|--------------|------|\n"
     
     for function_name, stats in function_usage.items():
-        table += f"| {function_name} | {stats['total_tokens']:,} | ${stats['total_cost']:.4f} |\n"
+        if isinstance(stats, dict):
+            table += f"| {function_name} | {stats.get('total_tokens', 0):,} | ${stats.get('total_cost', 0):.4f} |\n"
     
     return table
 
@@ -496,6 +509,17 @@ with gr.Blocks(css=config.CSS) as demo:
                 refresh_function_usage = gr.Button("Refresh Function Usage")
         
         # Connect the buttons to their respective functions
+        def handle_generate_error(e):
+            """Handle errors in generate cheatsheet function."""
+            error_message = f"Error: {str(e)}"
+            return error_message, error_message, ""
+
+        def handle_feature_error(e):
+            """Handle errors in feature generation functions."""
+            error_message = f"Error: {str(e)}"
+            return error_message, error_message
+
+        # Generate cheatsheet
         generate_btn.click(
             fn=lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating cheatsheet...</p></div>", None, None),
             outputs=[loading_output, output, raw_output]
@@ -513,7 +537,7 @@ with gr.Blocks(css=config.CSS) as demo:
             lambda: ("", "", "", "", ""),  # Clear loading indicators
             outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
         )
-        
+
         # Quiz generation with check
         generate_quiz_btn.click(
             lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating quiz...</p></div>", None),
@@ -529,7 +553,7 @@ with gr.Blocks(css=config.CSS) as demo:
             lambda: ("", "", "", "", ""),  # Clear loading indicators
             outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
         )
-        
+
         # Flashcards generation with check
         generate_flashcards_btn.click(
             lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating flashcards...</p></div>", None),
@@ -545,7 +569,7 @@ with gr.Blocks(css=config.CSS) as demo:
             lambda: ("", "", "", "", ""),  # Clear loading indicators
             outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
         )
-        
+
         # Practice problems generation with check
         generate_problems_btn.click(
             lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating practice problems...</p></div>", None),
@@ -561,7 +585,7 @@ with gr.Blocks(css=config.CSS) as demo:
             lambda: ("", "", "", "", ""),  # Clear loading indicators
             outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
         )
-        
+
         # Summary generation with check
         generate_summary_btn.click(
             lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating summary...</p></div>", None),

@@ -4,7 +4,7 @@ from config import config
 from langchain_community.callbacks.manager import get_openai_callback
 from datetime import datetime
 from singletons import OpenAIClient, DatabaseInstance
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from logger import get_logger
 import time
 from functools import wraps
@@ -36,6 +36,15 @@ class RateLimiter:
                 time.sleep(sleep_time)
         
         self.calls.append(now)
+    
+    def __enter__(self):
+        """Support for context manager protocol."""
+        self.wait_if_needed()
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Support for context manager protocol."""
+        pass
 
 # Create rate limiter instance
 rate_limiter = RateLimiter()
@@ -71,7 +80,7 @@ class ContentFilterError(APIError):
 )
 @rate_limit
 def make_api_call(func):
-    """Decorator to handle API calls with retries and error handling."""
+    """Decorator to handle API calls with rate limiting and error handling."""
     @wraps(func)
     def wrapper(*args, **kwargs):
         try:
@@ -79,18 +88,18 @@ def make_api_call(func):
                 result = func(*args, **kwargs)
                 # Log token usage
                 logger.info(f"API call completed - Tokens: {cb.total_tokens}, Cost: ${cb.total_cost}")
+                # Add to token tracker
+                token_tracker.add_log(
+                    function_name=func.__name__,
+                    prompt_tokens=cb.prompt_tokens,
+                    completion_tokens=cb.completion_tokens,
+                    total_tokens=cb.total_tokens,
+                    cost=cb.total_cost
+                )
                 return result
         except Exception as e:
-            error_msg = str(e).lower()
-            if "rate limit" in error_msg:
-                raise RateLimitError("API rate limit exceeded")
-            elif "maximum context length" in error_msg:
-                raise TokenLimitError("Token limit exceeded")
-            elif "content filter" in error_msg:
-                raise ContentFilterError("Content filtered by OpenAI")
-            else:
-                logger.error(f"API call failed: {e}")
-                raise APIError(f"API call failed: {e}")
+            logger.error(f"API call failed in {func.__name__}: {str(e)}")
+            raise
     return wrapper
 
 class TokenUsageTracker:
@@ -163,8 +172,20 @@ class TokenUsageTracker:
 # Create global token tracker instance
 token_tracker = TokenUsageTracker()
 
-def fix_markdown_formatting(text):
-    """Fixes common markdown formatting issues."""
+def fix_markdown_formatting(text: str) -> str:
+    """Fix common markdown formatting issues."""
+    # Remove extra newlines
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    # Fix code block formatting
+    text = re.sub(r'```(\w+)?\n', r'```\1\n', text)
+    
+    # Fix list formatting
+    text = re.sub(r'^\s*[-*]\s+', '- ', text, flags=re.MULTILINE)
+    
+    # Fix heading formatting
+    text = re.sub(r'^(#{1,6})\s*([^#\n]+)', r'\1 \2', text, flags=re.MULTILINE)
+    
     # Fix code blocks without language specification
     text = re.sub(r'```\s*\n', '```python\n', text)
     
@@ -180,7 +201,51 @@ def fix_markdown_formatting(text):
     # Fix code blocks without proper closing
     text = re.sub(r'```([^\n]*)\n(.*?)(?=\n\n|\Z)', lambda m: f'```{m.group(1)}\n{m.group(2)}\n```', text, flags=re.DOTALL)
     
-    return text
+    return text.strip()
+
+class LogFormatter:
+    """Utility class for formatting log data."""
+    
+    @staticmethod
+    def calculate_totals(logs: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Calculate total tokens and cost from logs."""
+        total_tokens = sum(log['total_tokens'] for log in logs)
+        total_cost = sum(log['cost'] for log in logs)
+        return {
+            'total_tokens': total_tokens,
+            'total_cost': total_cost
+        }
+    
+    @staticmethod
+    def format_log_entry(log: Dict[str, Any]) -> str:
+        """Format a single log entry as a string."""
+        return (
+            f"Function: {log['function_name']}\n"
+            f"Tokens: {log['total_tokens']}\n"
+            f"Cost: ${log['cost']:.4f}\n"
+            f"Timestamp: {log['timestamp']}"
+        )
+    
+    @staticmethod
+    def format_logs_as_table(logs: List[Dict[str, Any]]) -> str:
+        """Format logs as a markdown table."""
+        if not logs:
+            return "No logs found."
+        
+        # Create table header
+        table = "| Function | Tokens | Cost | Timestamp |\n"
+        table += "|----------|--------|------|-----------|\n"
+        
+        # Add rows
+        for log in logs:
+            table += (
+                f"| {log['function_name']} | "
+                f"{log['total_tokens']} | "
+                f"${log['cost']:.4f} | "
+                f"{log['timestamp']} |\n"
+            )
+        
+        return table
 
 def construct_instruction_prompt():
     """Constructs the system instruction message for the LLM."""
@@ -238,6 +303,7 @@ def summarize_inputs(prompt, theme, subject, complexity, audience):
         - Audience level: Ensure accessibility for beginners or depth for experts
         """
     )
+    llm = OpenAIClient.get_instance()
     response = llm.invoke([("human", summary_prompt)])
     return response.content
 
@@ -274,41 +340,41 @@ def construct_input_prompt(prompt, theme, subject, complexity, audience, style, 
 
 @make_api_call
 def generate_cheatsheet(prompt, theme, subject, template_name, style, exemplified, complexity, audience, enforce_formatting):
-    """Generate a cheatsheet with the given parameters."""
+    """Generate a cheatsheet based on the input parameters."""
     try:
-        # Get template from config
-        template = config.get_templates().get(template_name)
-        if not template:
-            raise ValueError(f"Invalid template name: {template_name}")
+        # Get the template structure from config
+        template = config.TEMPLATES.get(template_name, {})
         
-        # Construct the prompt
-        full_prompt = f"""
-        Theme: {theme}
-        Subject: {subject}
-        Style: {style}
-        Complexity: {complexity}
-        Audience: {audience}
-        Include Examples: {exemplified}
-        
-        {template['structure']}
+        # Construct the full prompt
+        full_prompt = f"""Create a cheatsheet about {subject} with the following parameters:
+        - Theme: {theme}
+        - Style: {style}
+        - Complexity: {complexity}
+        - Target Audience: {audience}
+        - Include Examples: {exemplified}
         
         Additional Instructions:
         {prompt}
-        """
         
-        # Generate content using the correct method
+        Template Structure:
+        {template.get('structure', '')}
+        
+        Format the output in markdown."""
+        
+        # Make the API call
         response = llm.invoke([("human", full_prompt)])
         
-        # Fix formatting if requested
+        # Format the response if requested
         if enforce_formatting:
             response = fix_markdown_formatting(response.content)
         else:
             response = response.content
-        
+            
         return response, response
     except Exception as e:
-        logger.error(f"Failed to generate cheatsheet: {e}")
-        raise
+        logger.error(f"Error in generate_cheatsheet: {str(e)}")
+        error_message = f"Error generating cheatsheet: {str(e)}"
+        return error_message, error_message
 
 def summarize_content_for_features(content):
     """Creates a concise summary of the cheatsheet content for use in other features.
@@ -330,6 +396,7 @@ def summarize_content_for_features(content):
     Format the summary in markdown with appropriate headings and structure.
     """
     
+    llm = OpenAIClient.get_instance()
     response = llm.invoke([("human", summary_prompt)])
     return response.content
 
@@ -337,153 +404,179 @@ def summarize_content_for_features(content):
 def generate_quiz(content, quiz_type, difficulty, count):
     """Generate a quiz based on the content."""
     try:
-        # Validate quiz type
-        valid_types = config.get_learning_features()["Quiz Generation"]["types"]
+        # Validate quiz type and difficulty
+        valid_types = ["multiple_choice", "true_false", "short_answer"]
+        valid_difficulties = ["easy", "medium", "hard", "intermediate", "advanced"]
+        
         if quiz_type not in valid_types:
-            raise ValueError(f"Invalid quiz type. Must be one of: {valid_types}")
+            raise ValueError(f"Invalid quiz type. Must be one of: {', '.join(valid_types)}")
         
-        # Validate difficulty
-        valid_difficulties = config.get_learning_features()["Quiz Generation"]["difficulty"]
-        if difficulty not in valid_difficulties:
-            raise ValueError(f"Invalid difficulty. Must be one of: {valid_difficulties}")
+        # Map intermediate/advanced to medium/hard
+        difficulty_map = {
+            "intermediate": "medium",
+            "advanced": "hard"
+        }
+        normalized_difficulty = difficulty_map.get(difficulty.lower(), difficulty.lower())
         
-        prompt = f"""
-        Generate a {difficulty} difficulty {quiz_type} quiz with {count} questions based on:
+        if normalized_difficulty not in ["easy", "medium", "hard"]:
+            raise ValueError(f"Invalid difficulty. Must be one of: easy, medium, hard, intermediate, advanced")
+        
+        # Construct the prompt
+        prompt = f"""Create a {normalized_difficulty} difficulty {quiz_type} quiz with {count} questions based on this content:
         
         {content}
         
-        Format each question with:
-        1. Question text
-        2. Options (for multiple choice)
-        3. Correct answer
-        4. Explanation
-        """
+        Format each question as:
+        Q: [Question text]
+        A: [Answer]
+        E: [Explanation]
         
+        For multiple choice, include options A, B, C, D.
+        For true/false, just state True or False.
+        For short answer, provide a brief expected answer."""
+        
+        # Make the API call
         response = llm.invoke([("human", prompt)])
-        return response.content
+        return fix_markdown_formatting(response.content)
     except Exception as e:
-        logger.error(f"Failed to generate quiz: {e}")
-        raise
+        logger.error(f"Error in generate_quiz: {str(e)}")
+        return f"Error generating quiz: {str(e)}"
 
 @make_api_call
 def generate_flashcards(content, count):
     """Generate flashcards based on the content."""
     try:
-        prompt = f"""
-        Generate {count} flashcards based on:
+        # Validate input
+        if count < 1 or count > 20:
+            raise ValueError("Flashcard count must be between 1 and 20")
+        
+        # Construct the prompt
+        prompt = f"""Create {count} flashcards based on this content:
         
         {content}
         
         Format each flashcard as:
-        Front: [Term or Question]
-        Back: [Definition or Answer]
-        """
+        Front: [Question or concept]
+        Back: [Answer or explanation]
         
+        Make the flashcards concise and focused on key concepts."""
+        
+        # Make the API call
         response = llm.invoke([("human", prompt)])
-        return response.content
+        return fix_markdown_formatting(response.content)
     except Exception as e:
-        logger.error(f"Failed to generate flashcards: {e}")
-        raise
+        logger.error(f"Error in generate_flashcards: {str(e)}")
+        return f"Error generating flashcards: {str(e)}"
 
 @make_api_call
 def generate_practice_problems(content, problem_type, count):
     """Generate practice problems based on the content."""
     try:
         # Validate problem type
-        valid_types = config.get_learning_features()["Practice Problems"]["types"]
-        if problem_type not in valid_types:
-            raise ValueError(f"Invalid problem type. Must be one of: {valid_types}")
+        valid_types = ["coding", "math", "concept", "exercises"]
+        if problem_type.lower() not in valid_types:
+            raise ValueError(f"Invalid problem type. Must be one of: {', '.join(valid_types)}")
         
-        prompt = f"""
-        Generate {count} {problem_type} problems based on:
+        # Map exercises to concept
+        problem_type_map = {
+            "exercises": "concept"
+        }
+        normalized_type = problem_type_map.get(problem_type.lower(), problem_type.lower())
+        
+        # Construct the prompt
+        prompt = f"""Create {count} {normalized_type} practice problems based on this content:
         
         {content}
         
-        Format each problem with:
-        1. Problem statement
-        2. Solution
-        3. Explanation
-        """
+        Format each problem as:
+        Problem: [Problem statement]
+        Solution: [Detailed solution]
+        Explanation: [Key concepts and reasoning]
         
+        Make the problems challenging but solvable."""
+        
+        # Make the API call
         response = llm.invoke([("human", prompt)])
-        return response.content
+        return fix_markdown_formatting(response.content)
     except Exception as e:
-        logger.error(f"Failed to generate practice problems: {e}")
-        raise
+        logger.error(f"Error in generate_practice_problems: {str(e)}")
+        return f"Error generating practice problems: {str(e)}"
 
 @make_api_call
 def generate_summary(content, level, focus):
-    """Generate a summary of the content."""
+    """Generate a summary based on the content."""
     try:
-        # Validate level
-        valid_levels = config.get_ai_features()["Smart Summarization"]["levels"]
+        # Validate summary level and focus
+        valid_levels = ["brief", "detailed", "comprehensive"]
+        valid_focus = ["concepts", "examples", "key_points"]
+        
         if level not in valid_levels:
-            raise ValueError(f"Invalid summary level. Must be one of: {valid_levels}")
-        
-        # Validate focus
-        valid_focus = config.get_ai_features()["Smart Summarization"]["focus"]
+            raise ValueError(f"Invalid summary level. Must be one of: {', '.join(valid_levels)}")
         if focus not in valid_focus:
-            raise ValueError(f"Invalid focus. Must be one of: {valid_focus}")
+            raise ValueError(f"Invalid focus area. Must be one of: {', '.join(valid_focus)}")
         
-        prompt = f"""
-        Generate a {level} summary focusing on {focus} from:
+        # Construct the prompt
+        prompt = f"""Create a {level} summary of this content, focusing on {focus}:
         
         {content}
-        """
         
+        Format the summary in markdown with appropriate headings and sections."""
+        
+        # Make the API call
         response = llm.invoke([("human", prompt)])
-        return response.content
+        return fix_markdown_formatting(response.content)
     except Exception as e:
-        logger.error(f"Failed to generate summary: {e}")
-        raise
+        logger.error(f"Error in generate_summary: {str(e)}")
+        return f"Error generating summary: {str(e)}"
 
-# Token usage tracking functions
-def get_token_logs():
-    """Get all token logs."""
-    return token_tracker.get_logs()
+# Log-related functions that use the token tracker
+def get_token_logs(limit: int = 100) -> List[Dict[str, Any]]:
+    """Get logs from database."""
+    return token_tracker.get_logs(limit)
 
-def get_token_logs_by_date_range(start_date, end_date, limit=100):
-    """Get token logs by date range."""
+def get_token_logs_by_date_range(start_date: str, end_date: str, limit: int = 100) -> List[Dict[str, Any]]:
+    """Get logs from database filtered by date range."""
     return token_tracker.get_logs_by_date_range(start_date, end_date, limit)
 
-def get_token_logs_by_function(function_name, limit=100):
-    """Get token logs by function."""
+def get_token_logs_by_function(function_name: str, limit: int = 100) -> List[Dict[str, Any]]:
+    """Get logs from database filtered by function name."""
     return token_tracker.get_logs_by_function(function_name, limit)
 
-def get_token_logs_by_token_range(min_tokens, max_tokens, limit=100):
-    """Get token logs by token range."""
+def get_token_logs_by_token_range(min_tokens: int, max_tokens: int, limit: int = 100) -> List[Dict[str, Any]]:
+    """Get logs from database filtered by token range."""
     return token_tracker.get_logs_by_token_range(min_tokens, max_tokens, limit)
 
-def get_token_logs_by_cost_range(min_cost, max_cost, limit=100):
-    """Get token logs by cost range."""
+def get_token_logs_by_cost_range(min_cost: float, max_cost: float, limit: int = 100) -> List[Dict[str, Any]]:
+    """Get logs from database filtered by cost range."""
     return token_tracker.get_logs_by_cost_range(min_cost, max_cost, limit)
 
-def get_unique_functions():
-    """Get list of unique functions."""
+def get_unique_functions() -> List[str]:
+    """Get list of unique function names from database."""
     return token_tracker.get_unique_functions()
 
-def calculate_total_usage():
-    """Calculate total token usage."""
-    logs = token_tracker.get_logs()
-    total_tokens = sum(log['total_tokens'] for log in logs)
-    total_cost = sum(log['cost'] for log in logs)
-    return {'total_tokens': total_tokens, 'total_cost': total_cost}
+def calculate_total_usage() -> Dict[str, Any]:
+    """Calculate total token usage and cost."""
+    logs = get_token_logs()
+    return LogFormatter.calculate_totals(logs)
 
-def calculate_total_usage_by_function():
-    """Calculate total token usage by function."""
-    logs = token_tracker.get_logs()
-    usage_by_function = {}
+def calculate_total_usage_by_function() -> Dict[str, Dict[str, Any]]:
+    """Calculate total token usage and cost by function."""
+    logs = get_token_logs()
+    function_usage = {}
+    
     for log in logs:
         function_name = log['function_name']
-        if function_name not in usage_by_function:
-            usage_by_function[function_name] = {'total_tokens': 0, 'total_cost': 0}
-        usage_by_function[function_name]['total_tokens'] += log['total_tokens']
-        usage_by_function[function_name]['total_cost'] += log['cost']
-    return usage_by_function
+        if function_name not in function_usage:
+            function_usage[function_name] = {
+                'total_tokens': 0,
+                'total_cost': 0.0
+            }
+        function_usage[function_name]['total_tokens'] += log['total_tokens']
+        function_usage[function_name]['total_cost'] += log['cost']
+    
+    return function_usage
 
-def calculate_total_usage_by_date(start_date, end_date):
-    """Calculate total token usage by date range."""
-    logs = token_tracker.get_logs_by_date_range(start_date, end_date)
-    total_tokens = sum(log['total_tokens'] for log in logs)
-    total_cost = sum(log['cost'] for log in logs)
-    return {'total_tokens': total_tokens, 'total_cost': total_cost} 
+def calculate_total_usage_by_date(start_date: str, end_date: str) -> Dict[str, Any]:
+    """Calculate total token usage and cost for a date range."""
+    logs = get_token_logs_by_date_range(start_date, end_date)
+    return LogFormatter.calculate_totals(logs) 

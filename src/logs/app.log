@@ -1,5 +1,0 @@
-{"timestamp": "2025-04-04T21:10:32.055193", "level": "INFO", "logger": "config", "message": "Configuration loaded successfully", "module": "config", "function": "_load_config", "line": 145}
-{"timestamp": "2025-04-04T21:12:21.723541", "level": "INFO", "logger": "config", "message": "Configuration loaded successfully", "module": "config", "function": "_load_config", "line": 145}
-{"timestamp": "2025-04-04T21:14:39.599654", "level": "INFO", "logger": "config", "message": "Configuration loaded successfully", "module": "config", "function": "_load_config", "line": 145}
-{"timestamp": "2025-04-04T21:16:18.598990", "level": "ERROR", "logger": "generators", "message": "Failed to generate cheatsheet: Got unsupported message type: \n", "module": "generators", "function": "generate_cheatsheet", "line": 308}
-{"timestamp": "2025-04-04T21:16:18.599874", "level": "ERROR", "logger": "generators", "message": "API call failed: Got unsupported message type: \n", "module": "generators", "function": "wrapper", "line": 92}

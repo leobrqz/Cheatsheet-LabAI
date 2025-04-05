@@ -24,6 +24,7 @@ from singletons import OpenAIClient, DatabaseInstance
 from datetime import datetime, timedelta
 from logger import get_logger
 from typing import Union, List, Any
+from query_builder import LogQueryBuilder
 
 # Get logger instance
 logger = get_logger(__name__)
@@ -251,18 +252,8 @@ def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_
         if min_cost is not None and max_cost is not None:
             query_builder.add_cost_range(min_cost, max_cost)
         
-        # Execute query using the correct method
-        logs = get_token_logs()  # Get all logs first
-        
-        # Apply filters manually if any are set
-        if query_builder.has_filters():
-            filtered_logs = []
-            for log in logs:
-                if query_builder.matches_filters(log):
-                    filtered_logs.append(log)
-            logs = filtered_logs[:limit]  # Apply limit after filtering
-        else:
-            logs = logs[:limit]  # Apply limit to unfiltered logs
+        # Execute query using the query builder
+        logs = db.query_logs(query_builder, limit)
         
         if not logs:
             return [], "No logs match the selected criteria"
@@ -277,77 +268,6 @@ def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_
         return log_data, stats
     except ValueError as e:
         return [], f"Error: {str(e)}"
-
-class LogQueryBuilder:
-    def __init__(self):
-        self.conditions: List[str] = []
-        self.parameters: List[Any] = []
-        # Initialize filter storage
-        self.date_range = None
-        self.function_name = None
-        self.token_range = None
-        self.cost_range = None
-    
-    def add_date_range(self, start_date: str, end_date: str) -> 'LogQueryBuilder':
-        """Add date range filter."""
-        self.date_range = (start_date, end_date)
-        return self
-    
-    def add_function_filter(self, function_name: str) -> 'LogQueryBuilder':
-        """Add function filter."""
-        self.function_name = function_name
-        return self
-    
-    def add_token_range(self, min_tokens: int, max_tokens: int) -> 'LogQueryBuilder':
-        """Add token range filter."""
-        self.token_range = (min_tokens, max_tokens)
-        return self
-    
-    def add_cost_range(self, min_cost: float, max_cost: float) -> 'LogQueryBuilder':
-        """Add cost range filter."""
-        self.cost_range = (min_cost, max_cost)
-        return self
-    
-    def has_filters(self):
-        """Check if any filters are set."""
-        return bool(self.date_range or self.function_name or self.token_range or self.cost_range)
-    
-    def matches_filters(self, log):
-        """Check if a log entry matches all the set filters."""
-        # Check date range
-        if self.date_range:
-            try:
-                # Parse the full timestamp from the log
-                timestamp = log.get('timestamp', '').split('.')[0]
-                log_date = datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S')
-                # Parse the date-only strings from filters and set time to start/end of day
-                start_date = datetime.strptime(self.date_range[0], '%Y-%m-%d').replace(hour=0, minute=0, second=0)
-                end_date = datetime.strptime(self.date_range[1], '%Y-%m-%d').replace(hour=23, minute=59, second=59)
-                if not (start_date <= log_date <= end_date):
-                    return False
-            except (ValueError, KeyError) as e:
-                logger.error(f"Date parsing error: {str(e)} for log: {log}")
-                return False
-        
-        # Check function name
-        if self.function_name:
-            log_function = log.get('function_name', log.get('function', ''))
-            if log_function != self.function_name:
-                return False
-        
-        # Check token range
-        if self.token_range:
-            total_tokens = log.get('total_tokens', 0)
-            if not (self.token_range[0] <= total_tokens <= self.token_range[1]):
-                return False
-        
-        # Check cost range
-        if self.cost_range:
-            cost = log.get('cost', 0)
-            if not (self.cost_range[0] <= cost <= self.cost_range[1]):
-                return False
-        
-        return True
 
 # Create Gradio interface using Blocks
 with gr.Blocks(css=config.CSS) as demo:

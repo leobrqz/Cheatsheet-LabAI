@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from contextlib import contextmanager
 import platform
 import threading
+from queue import Queue, Empty
 
 from utils import validate_date_format
 from formatters import LogFormatter, LogEntry
@@ -15,6 +16,49 @@ from logger import get_logger
 
 # Get logger instance
 logger = get_logger(__name__)
+
+class DatabaseConnectionPool:
+    def __init__(self, db_path: str, max_connections: int = 5):
+        self.db_path = db_path
+        self.pool: Queue = Queue(maxsize=max_connections)
+        self._lock = threading.Lock()
+        
+        # Initialize pool with connections
+        for _ in range(max_connections):
+            try:
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                self.pool.put(conn)
+            except Exception as e:
+                logger.error(f"Failed to create database connection: {e}")
+                raise
+    
+    def get_connection(self) -> sqlite3.Connection:
+        """Get a connection from the pool."""
+        try:
+            return self.pool.get(timeout=5)  # 5 second timeout
+        except Empty:
+            logger.error("Timeout waiting for database connection")
+            raise TimeoutError("No database connection available")
+    
+    def return_connection(self, conn: sqlite3.Connection):
+        """Return a connection to the pool."""
+        try:
+            self.pool.put(conn, timeout=5)
+        except Exception as e:
+            logger.error(f"Failed to return connection to pool: {e}")
+            conn.close()
+    
+    def close_all(self):
+        """Close all connections in the pool."""
+        while not self.pool.empty():
+            try:
+                conn = self.pool.get_nowait()
+                conn.close()
+            except Empty:
+                break
+            except Exception as e:
+                logger.error(f"Error closing connection: {e}")
 
 class Database:
     def __init__(self, db_path="db/debug_logs.db"):
@@ -28,6 +72,9 @@ class Database:
         # Set appropriate file permissions based on OS
         self._set_permissions()
         
+        # Initialize connection pool
+        self.pool = DatabaseConnectionPool(db_path)
+        
         self._create_tables()
     
     def _set_permissions(self):
@@ -39,9 +86,9 @@ class Database:
             
             # Unix-like systems
             db_dir = os.path.dirname(self.db_path)
-            os.chmod(db_dir, 0o755)  # rwxr-xr-x
+            os.chmod(db_dir, 0o700)  # Owner read/write/execute only
             if os.path.exists(self.db_path):
-                os.chmod(self.db_path, 0o644)  # rw-r--r--
+                os.chmod(self.db_path, 0o600)  # Owner read/write only
             
             logger.info(f"Set permissions for database at {self.db_path}")
         except Exception as e:
@@ -50,18 +97,24 @@ class Database:
     
     @contextmanager
     def _get_connection(self):
-        """Get a database connection for the current thread."""
+        """Get a database connection from the pool."""
         conn = None
         try:
-            # Create a new connection for this thread
-            conn = sqlite3.connect(self.db_path)
+            conn = self.pool.get_connection()
             yield conn
         except Exception as e:
             logger.error(f"Database connection error: {e}")
             raise
         finally:
             if conn:
-                conn.close()
+                self.pool.return_connection(conn)
+    
+    def __del__(self):
+        """Cleanup when the database instance is destroyed."""
+        try:
+            self.pool.close_all()
+        except Exception as e:
+            logger.error(f"Error closing database connections: {e}")
     
     def _create_tables(self):
         """Create necessary tables if they don't exist."""

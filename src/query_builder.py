@@ -22,7 +22,7 @@ class LogQueryBuilder:
             True if valid, False otherwise
         """
         try:
-            datetime.fromisoformat(date_str)
+            datetime.strptime(date_str, "%Y-%m-%d")
             return True
         except ValueError:
             return False
@@ -45,8 +45,8 @@ class LogQueryBuilder:
         Adds date range filter to the query.
         
         Args:
-            start_date: Start date in ISO format
-            end_date: End date in ISO format
+            start_date: Start date in YYYY-MM-DD format
+            end_date: End date in YYYY-MM-DD format
             
         Returns:
             self for method chaining
@@ -55,10 +55,15 @@ class LogQueryBuilder:
             ValueError: If dates are invalid
         """
         if not (self._validate_date(start_date) and self._validate_date(end_date)):
-            raise ValueError("Invalid date format. Use ISO format (YYYY-MM-DD)")
+            raise ValueError("Invalid date format. Use YYYY-MM-DD format")
+        
+        # Convert dates to datetime range
+        # Use ISO format for better compatibility
+        start_datetime = f"{start_date}T00:00:00"
+        end_datetime = f"{end_date}T23:59:59"
             
         self.conditions.append("timestamp BETWEEN ? AND ?")
-        self.parameters.extend([start_date, end_date])
+        self.parameters.extend([start_datetime, end_datetime])
         return self
     
     def add_function_filter(self, function_name: str) -> 'LogQueryBuilder':
@@ -122,6 +127,15 @@ class LogQueryBuilder:
         self.conditions.append("cost BETWEEN ? AND ?")
         self.parameters.extend([min_cost, max_cost])
         return self
+    
+    def has_filters(self) -> bool:
+        """
+        Check if any filters are set.
+        
+        Returns:
+            True if any filters are set, False otherwise
+        """
+        return bool(self.conditions)
     
     def build(self, limit: Optional[int] = None) -> Tuple[str, List[Any]]:
         """

@@ -18,6 +18,76 @@ logger = get_logger(__name__)
 db = DatabaseInstance.get_instance()
 llm = OpenAIClient.get_instance()
 
+class TokenUsageTracker:
+    def __init__(self):
+        self.db = DatabaseInstance.get_instance()
+    
+    def add_log(self, function_name: str, prompt_tokens: int, 
+                completion_tokens: int, total_tokens: int, 
+                cost: float, output: Optional[str] = None) -> None:
+        """Add a log entry to the database."""
+        try:
+            self.db.add_log(function_name, prompt_tokens, completion_tokens, 
+                          total_tokens, cost, output)
+        except Exception as e:
+            logger.error(f"Failed to add log entry: {e}")
+            raise
+    
+    def get_logs(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get logs from database."""
+        try:
+            return self.db.get_logs(limit)
+        except Exception as e:
+            logger.error(f"Failed to retrieve logs: {e}")
+            raise
+    
+    def get_logs_by_date_range(self, start_date: str, end_date: str, 
+                              limit: int = 100) -> List[Dict[str, Any]]:
+        """Get logs from database filtered by date range."""
+        try:
+            return self.db.get_logs_by_date_range(start_date, end_date, limit)
+        except Exception as e:
+            logger.error(f"Failed to retrieve logs by date range: {e}")
+            raise
+    
+    def get_logs_by_function(self, function_name: str, 
+                            limit: int = 100) -> List[Dict[str, Any]]:
+        """Get logs from database filtered by function name."""
+        try:
+            return self.db.get_logs_by_function(function_name, limit)
+        except Exception as e:
+            logger.error(f"Failed to retrieve logs by function: {e}")
+            raise
+    
+    def get_logs_by_token_range(self, min_tokens: int, max_tokens: int, 
+                               limit: int = 100) -> List[Dict[str, Any]]:
+        """Get logs from database filtered by token range."""
+        try:
+            return self.db.get_logs_by_token_range(min_tokens, max_tokens, limit)
+        except Exception as e:
+            logger.error(f"Failed to retrieve logs by token range: {e}")
+            raise
+    
+    def get_logs_by_cost_range(self, min_cost: float, max_cost: float, 
+                              limit: int = 100) -> List[Dict[str, Any]]:
+        """Get logs from database filtered by cost range."""
+        try:
+            return self.db.get_logs_by_cost_range(min_cost, max_cost, limit)
+        except Exception as e:
+            logger.error(f"Failed to retrieve logs by cost range: {e}")
+            raise
+    
+    def get_unique_functions(self) -> List[str]:
+        """Get list of unique function names from database."""
+        try:
+            return self.db.get_unique_functions()
+        except Exception as e:
+            logger.error(f"Failed to retrieve unique functions: {e}")
+            raise
+
+# Create global token tracker instance
+token_tracker = TokenUsageTracker()
+
 class RateLimiter:
     def __init__(self, calls_per_minute: int = 60):
         self.calls_per_minute = calls_per_minute
@@ -119,76 +189,6 @@ def make_api_call(func):
             logger.error(f"API call failed in {func.__name__}: {str(e)}")
             raise
     return wrapper
-
-class TokenUsageTracker:
-    def __init__(self):
-        self.db = DatabaseInstance.get_instance()
-    
-    def add_log(self, function_name: str, prompt_tokens: int, 
-                completion_tokens: int, total_tokens: int, 
-                cost: float, output: Optional[str] = None) -> None:
-        """Add a log entry to the database."""
-        try:
-            self.db.add_log(function_name, prompt_tokens, completion_tokens, 
-                          total_tokens, cost, output)
-        except Exception as e:
-            logger.error(f"Failed to add log entry: {e}")
-            raise
-    
-    def get_logs(self, limit: int = 100) -> List[Dict[str, Any]]:
-        """Get logs from database."""
-        try:
-            return self.db.get_logs(limit)
-        except Exception as e:
-            logger.error(f"Failed to retrieve logs: {e}")
-            raise
-    
-    def get_logs_by_date_range(self, start_date: str, end_date: str, 
-                              limit: int = 100) -> List[Dict[str, Any]]:
-        """Get logs from database filtered by date range."""
-        try:
-            return self.db.get_logs_by_date_range(start_date, end_date, limit)
-        except Exception as e:
-            logger.error(f"Failed to retrieve logs by date range: {e}")
-            raise
-    
-    def get_logs_by_function(self, function_name: str, 
-                            limit: int = 100) -> List[Dict[str, Any]]:
-        """Get logs from database filtered by function name."""
-        try:
-            return self.db.get_logs_by_function(function_name, limit)
-        except Exception as e:
-            logger.error(f"Failed to retrieve logs by function: {e}")
-            raise
-    
-    def get_logs_by_token_range(self, min_tokens: int, max_tokens: int, 
-                               limit: int = 100) -> List[Dict[str, Any]]:
-        """Get logs from database filtered by token range."""
-        try:
-            return self.db.get_logs_by_token_range(min_tokens, max_tokens, limit)
-        except Exception as e:
-            logger.error(f"Failed to retrieve logs by token range: {e}")
-            raise
-    
-    def get_logs_by_cost_range(self, min_cost: float, max_cost: float, 
-                              limit: int = 100) -> List[Dict[str, Any]]:
-        """Get logs from database filtered by cost range."""
-        try:
-            return self.db.get_logs_by_cost_range(min_cost, max_cost, limit)
-        except Exception as e:
-            logger.error(f"Failed to retrieve logs by cost range: {e}")
-            raise
-    
-    def get_unique_functions(self) -> List[str]:
-        """Get list of unique function names from database."""
-        try:
-            return self.db.get_unique_functions()
-        except Exception as e:
-            logger.error(f"Failed to retrieve unique functions: {e}")
-            raise
-
-# Create global token tracker instance
-token_tracker = TokenUsageTracker()
 
 def fix_markdown_formatting(text: str) -> str:
     """Fix common markdown formatting issues."""

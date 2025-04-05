@@ -320,7 +320,86 @@ with gr.Blocks(css=config.CSS) as demo:
                         output = gr.Markdown(label="Generated Cheatsheet")
                     with gr.TabItem("Raw Text"):
                         raw_output = gr.Code(label="Raw Markdown", language="markdown")
-    
+
+    with gr.Tab("Templates"):
+        gr.Markdown("<h1 style='text-align: center; font-size: 32px; margin-bottom: 30px;'>Template Management</h1>")
+        
+        with gr.Row():
+            with gr.Column(scale=2):
+                # Template List Section
+                gr.Markdown("### Available Templates")
+                
+                # Search and filter
+                with gr.Row():
+                    template_search = gr.Textbox(
+                        label="Search Templates",
+                        placeholder="Search by name or type...",
+                        scale=3
+                    )
+                    template_filter = gr.Dropdown(
+                        choices=["All", "Default", "Custom"],
+                        label="Filter by Type",
+                        value="All",
+                        scale=1
+                    )
+                
+                # Template List
+                template_list = gr.Dataframe(
+                    headers=["Name", "Type", "Last Modified"],
+                    datatype=["str", "str", "str"],
+                    label="Templates",
+                    interactive=False
+                )
+                
+                # Template Actions
+                with gr.Row():
+                    new_template_btn = gr.Button("New Template", variant="primary", scale=1)
+                    refresh_templates_btn = gr.Button("Refresh Templates", variant="secondary", scale=1)
+                
+                with gr.Row():
+                    edit_template_btn = gr.Button("Edit Template", variant="secondary", scale=1)
+                    delete_template_btn = gr.Button("Delete Template", variant="stop", scale=1)
+                
+                # Delete confirmation
+                delete_confirmation = gr.Markdown("", visible=False)
+                with gr.Row(visible=False) as delete_confirm_row:
+                    confirm_delete_btn = gr.Button("Confirm Delete", variant="stop", scale=1)
+                    cancel_delete_btn = gr.Button("Cancel", variant="secondary", scale=1)
+            
+            with gr.Column(scale=3):
+                # Template Editor Section
+                gr.Markdown("### Template Editor")
+                
+                with gr.Row():
+                    template_editor_name = gr.Textbox(
+                        label="Template Name",
+                        placeholder="Enter template name...",
+                        scale=2
+                    )
+                    template_editor_type = gr.Dropdown(
+                        choices=["Default", "Custom"],
+                        label="Template Type",
+                        value="Custom",
+                        scale=1
+                    )
+                
+                # Template Content Editor
+                gr.Markdown("#### Template Content")
+                template_editor_content = gr.Code(
+                    label="",
+                    language="markdown",
+                    value="# Enter template content in markdown format..."
+                )
+                
+                # Template Actions
+                with gr.Row():
+                    save_template_btn = gr.Button("Save Template", variant="primary", scale=1)
+                    preview_template_btn = gr.Button("Preview Template", variant="secondary", scale=1)
+                
+                # Template Preview
+                gr.Markdown("#### Preview")
+                template_preview = gr.Markdown(label="Template Preview")
+
     with gr.Tab("Interactive Learning"):
         gr.Markdown("<h1 style='text-align: center; font-size: 32px; margin-bottom: 30px;'>Interactive Learning Features</h1>")
         gr.Markdown("<p style='text-align: center; color: #666;'>Generate a cheatsheet first to use these features</p>")
@@ -598,6 +677,165 @@ with gr.Blocks(css=config.CSS) as demo:
         inputs=[],
         outputs=[cheatsheet_loading]
     )
+
+    # Template Management Event Handlers
+    def update_template_list(search_query="", filter_type="All"):
+        """Update the template list with current templates."""
+        # Placeholder for template list update with search and filter
+        templates = [
+            ["Study Guide", "Default", "2024-04-05"],
+            ["Custom Template", "Custom", "2024-04-05"],
+            ["Math Formula Sheet", "Default", "2024-04-04"],
+            ["Programming Reference", "Custom", "2024-04-03"]
+        ]
+        
+        # Apply search filter
+        if search_query:
+            templates = [t for t in templates if search_query.lower() in t[0].lower()]
+        
+        # Apply type filter
+        if filter_type != "All":
+            templates = [t for t in templates if t[1] == filter_type]
+            
+        return templates
+
+    def refresh_templates():
+        """Refresh the template list."""
+        return update_template_list()
+
+    def new_template():
+        """Create a new template."""
+        return "", "Custom", "# Enter template content in markdown format..."
+
+    def edit_template(template_data):
+        """Load template data into editor."""
+        if not template_data or len(template_data) == 0:
+            return "", "Custom", "# Enter template content in markdown format..."
+        # Placeholder for template editing
+        return template_data[0][0], template_data[0][1], "# Template Content"
+
+    def delete_template(template_data):
+        """Show delete confirmation dialog."""
+        if not template_data or len(template_data) == 0:
+            return "No template selected", gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)
+        
+        template_name = template_data[0][0]
+        return (
+            f"Are you sure you want to delete the template '{template_name}'?",
+            gr.update(visible=True),
+            gr.update(visible=True),
+            gr.update(visible=True)
+        )
+    
+    def confirm_delete(template_data):
+        """Delete the selected template after confirmation."""
+        if not template_data or len(template_data) == 0:
+            return "No template selected", update_template_list(), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)
+        
+        template_name = template_data[0][0]
+        # Placeholder for template deletion
+        return (
+            f"Template '{template_name}' deleted successfully",
+            update_template_list(),
+            gr.update(visible=False),
+            gr.update(visible=False),
+            gr.update(visible=False)
+        )
+    
+    def cancel_delete():
+        """Cancel template deletion."""
+        return (
+            "Deletion cancelled",
+            gr.update(visible=False),
+            gr.update(visible=False),
+            gr.update(visible=False)
+        )
+
+    def save_template(name, type, content):
+        """Save template to database."""
+        if not name or not content:
+            return "Template name and content are required", update_template_list()
+        # Placeholder for template saving
+        return f"Template '{name}' saved successfully", update_template_list()
+
+    def preview_template(content):
+        """Preview template content."""
+        if not content:
+            return "No content to preview"
+        # Placeholder for template preview
+        return content
+
+    # Search and filter event handlers
+    template_search.change(
+        fn=update_template_list,
+        inputs=[template_search, template_filter],
+        outputs=[template_list]
+    )
+    
+    template_filter.change(
+        fn=update_template_list,
+        inputs=[template_search, template_filter],
+        outputs=[template_list]
+    )
+    
+    # Refresh templates button
+    refresh_templates_btn.click(
+        fn=refresh_templates,
+        inputs=[],
+        outputs=[template_list]
+    )
+
+    # New template button
+    new_template_btn.click(
+        fn=new_template,
+        inputs=[],
+        outputs=[template_editor_name, template_editor_type, template_editor_content]
+    )
+
+    # Edit template button
+    edit_template_btn.click(
+        fn=edit_template,
+        inputs=[template_list],
+        outputs=[template_editor_name, template_editor_type, template_editor_content]
+    )
+
+    # Delete template button
+    delete_template_btn.click(
+        fn=delete_template,
+        inputs=[template_list],
+        outputs=[template_preview, delete_confirmation, delete_confirm_row, confirm_delete_btn, cancel_delete_btn]
+    )
+
+    # Confirm delete button
+    confirm_delete_btn.click(
+        fn=confirm_delete,
+        inputs=[template_list],
+        outputs=[template_preview, template_list, delete_confirmation, delete_confirm_row, delete_confirm_row]
+    )
+    
+    # Cancel delete button
+    cancel_delete_btn.click(
+        fn=cancel_delete,
+        inputs=[],
+        outputs=[template_preview, delete_confirmation, delete_confirm_row, delete_confirm_row]
+    )
+
+    # Save template button
+    save_template_btn.click(
+        fn=save_template,
+        inputs=[template_editor_name, template_editor_type, template_editor_content],
+        outputs=[template_preview, template_list]
+    )
+
+    # Preview template button
+    preview_template_btn.click(
+        fn=preview_template,
+        inputs=[template_editor_content],
+        outputs=[template_preview]
+    )
+
+    # Initialize template list with initial data
+    template_list.value = update_template_list()
 
     # Quiz generation event handler
     generate_quiz_btn.click(

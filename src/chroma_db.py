@@ -35,6 +35,7 @@ def handle_chroma_errors(func):
 class ChromaDatabase:
     _instance = None
     _lock = threading.Lock()
+    _collection_lock = threading.Lock()  # Add separate lock for collection operations
     
     def __new__(cls):
         if cls._instance is None:
@@ -48,31 +49,31 @@ class ChromaDatabase:
         if self._initialized:
             return
             
-        # Create the database directory if it doesn't exist
-        self.db_path = os.path.join('..', 'data', 'chroma')
-        os.makedirs(self.db_path, exist_ok=True)
-        
-        # Initialize Chroma client with persistent storage
-        self.client = chromadb.PersistentClient(
-            path=self.db_path,
-            settings=Settings(
-                allow_reset=True,
-                is_persistent=True,
-                persist_directory=self.db_path
+        with self._lock:  # Ensure thread-safe initialization
+            if self._initialized:  # Double-check pattern
+                return
+                
+            # Create the database directory if it doesn't exist
+            self.db_path = os.path.join('..', 'data', 'chroma')
+            os.makedirs(self.db_path, exist_ok=True)
+            
+            # Initialize Chroma client with persistent storage
+            self.client = chromadb.PersistentClient(
+                path=self.db_path,
+                settings=Settings(
+                    allow_reset=True,
+                    is_persistent=True,
+                    persist_directory=self.db_path
+                )
             )
-        )
-        
-        # Create or get the collection for token logs with thread safety
-        self.collection = self.client.get_or_create_collection(
-            name="token_logs",
-            metadata={"description": "Token usage logs for OpenAI API calls"}
-        )
-        
-        # Initialize thread-local storage
-        self._local = threading.local()
-        
-        self._initialized = True
-        logger.info(f"Initialized Chroma database at {self.db_path}")
+            
+            # Initialize thread-local storage
+            self._local = threading.local()
+            self._collection_cache = {}  # Add collection cache
+            self._collection_cache_lock = threading.Lock()  # Add cache lock
+            
+            self._initialized = True
+            logger.info(f"Initialized Chroma database at {self.db_path}")
     
     def __del__(self):
         """Cleanup when the database instance is destroyed."""
@@ -90,6 +91,10 @@ class ChromaDatabase:
         - Persisting any pending changes
         """
         try:
+            with self._collection_cache_lock:
+                # Clear collection cache
+                self._collection_cache.clear()
+            
             # Clear thread-local storage
             if hasattr(self._local, 'collection'):
                 delattr(self._local, 'collection')
@@ -152,15 +157,26 @@ class ChromaDatabase:
             raise
     
     def _get_thread_safe_collection(self):
-        """
-        Get a thread-safe collection instance.
+        """Get a thread-safe collection instance with proper locking."""
+        thread_id = threading.get_ident()
         
-        Returns:
-            ChromaDB collection instance
-        """
-        if not hasattr(self._local, 'collection'):
-            self._local.collection = self.client.get_collection("token_logs")
-        return self._local.collection
+        # Check cache first
+        with self._collection_cache_lock:
+            if thread_id in self._collection_cache:
+                return self._collection_cache[thread_id]
+        
+        # If not in cache, create new collection with proper locking
+        with self._collection_lock:
+            collection = self.client.get_or_create_collection(
+                name="token_logs",
+                metadata={"description": "Token usage logs for OpenAI API calls"}
+            )
+            
+            # Update cache
+            with self._collection_cache_lock:
+                self._collection_cache[thread_id] = collection
+            
+            return collection
     
     def _validate_and_format_date(self, date_str: str) -> float:
         """

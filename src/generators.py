@@ -19,68 +19,169 @@ db = DatabaseInstance.get_instance()
 llm = OpenAIClient.get_instance()
 
 class TokenUsageTracker:
+    _instance = None
+    _lock = threading.Lock()
+    _cache = {}
+    _cache_lock = threading.Lock()
+    _cache_ttl = 300  # 5 minutes cache TTL
+    
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super(TokenUsageTracker, cls).__new__(cls)
+                    cls._instance._initialized = False
+        return cls._instance
+    
     def __init__(self):
-        self.db = DatabaseInstance.get_instance()
+        if self._initialized:
+            return
+            
+        with self._lock:
+            if self._initialized:
+                return
+                
+            self.db = DatabaseInstance.get_instance()
+            self._initialized = True
+    
+    def _get_cache_key(self, method: str, *args, **kwargs) -> str:
+        """Generate a cache key from method name and arguments."""
+        key_parts = [method]
+        key_parts.extend(str(arg) for arg in args)
+        key_parts.extend(f"{k}:{v}" for k, v in sorted(kwargs.items()))
+        return ":".join(key_parts)
+    
+    def _get_cached_result(self, cache_key: str) -> Optional[List[Dict[str, Any]]]:
+        """Get cached result if it exists and is not expired."""
+        with self._cache_lock:
+            if cache_key in self._cache:
+                timestamp, result = self._cache[cache_key]
+                if time.time() - timestamp < self._cache_ttl:
+                    return result
+                del self._cache[cache_key]
+        return None
+    
+    def _cache_result(self, cache_key: str, result: List[Dict[str, Any]]) -> None:
+        """Cache a result with current timestamp."""
+        with self._cache_lock:
+            self._cache[cache_key] = (time.time(), result)
     
     def add_log(self, function_name: str, prompt_tokens: int, 
                 completion_tokens: int, total_tokens: int, 
                 cost: float, output: Optional[str] = None) -> None:
         """Add a log entry to the database."""
         try:
-            self.db.add_log(function_name, prompt_tokens, completion_tokens, 
-                          total_tokens, cost, output)
+            with self._lock:  # Ensure thread-safe log addition
+                self.db.add_log(function_name, prompt_tokens, completion_tokens, 
+                              total_tokens, cost, output)
+                # Invalidate relevant caches
+                with self._cache_lock:
+                    self._cache.clear()  # Simple invalidation strategy
         except Exception as e:
             logger.error(f"Failed to add log entry: {e}")
             raise
     
     def get_logs(self, limit: int = 100) -> List[Dict[str, Any]]:
-        """Get logs from database."""
+        """Get logs from database with caching."""
+        cache_key = self._get_cache_key("get_logs", limit=limit)
+        cached_result = self._get_cached_result(cache_key)
+        if cached_result is not None:
+            return cached_result
+            
         try:
-            return self.db.get_logs(limit)
+            result = self.db.get_logs(limit)
+            self._cache_result(cache_key, result)
+            return result
         except Exception as e:
             logger.error(f"Failed to retrieve logs: {e}")
             raise
     
     def get_logs_by_date_range(self, start_date: str, end_date: str, 
                               limit: int = 100) -> List[Dict[str, Any]]:
-        """Get logs from database filtered by date range."""
+        """Get logs from database filtered by date range with caching."""
+        cache_key = self._get_cache_key("get_logs_by_date_range", 
+                                      start_date=start_date, 
+                                      end_date=end_date, 
+                                      limit=limit)
+        cached_result = self._get_cached_result(cache_key)
+        if cached_result is not None:
+            return cached_result
+            
         try:
-            return self.db.get_logs_by_date_range(start_date, end_date, limit)
+            result = self.db.get_logs_by_date_range(start_date, end_date, limit)
+            self._cache_result(cache_key, result)
+            return result
         except Exception as e:
             logger.error(f"Failed to retrieve logs by date range: {e}")
             raise
     
     def get_logs_by_function(self, function_name: str, 
                             limit: int = 100) -> List[Dict[str, Any]]:
-        """Get logs from database filtered by function name."""
+        """Get logs from database filtered by function name with caching."""
+        cache_key = self._get_cache_key("get_logs_by_function", 
+                                      function_name=function_name, 
+                                      limit=limit)
+        cached_result = self._get_cached_result(cache_key)
+        if cached_result is not None:
+            return cached_result
+            
         try:
-            return self.db.get_logs_by_function(function_name, limit)
+            result = self.db.get_logs_by_function(function_name, limit)
+            self._cache_result(cache_key, result)
+            return result
         except Exception as e:
             logger.error(f"Failed to retrieve logs by function: {e}")
             raise
     
     def get_logs_by_token_range(self, min_tokens: int, max_tokens: int, 
                                limit: int = 100) -> List[Dict[str, Any]]:
-        """Get logs from database filtered by token range."""
+        """Get logs from database filtered by token range with caching."""
+        cache_key = self._get_cache_key("get_logs_by_token_range", 
+                                      min_tokens=min_tokens, 
+                                      max_tokens=max_tokens, 
+                                      limit=limit)
+        cached_result = self._get_cached_result(cache_key)
+        if cached_result is not None:
+            return cached_result
+            
         try:
-            return self.db.get_logs_by_token_range(min_tokens, max_tokens, limit)
+            result = self.db.get_logs_by_token_range(min_tokens, max_tokens, limit)
+            self._cache_result(cache_key, result)
+            return result
         except Exception as e:
             logger.error(f"Failed to retrieve logs by token range: {e}")
             raise
     
     def get_logs_by_cost_range(self, min_cost: float, max_cost: float, 
                               limit: int = 100) -> List[Dict[str, Any]]:
-        """Get logs from database filtered by cost range."""
+        """Get logs from database filtered by cost range with caching."""
+        cache_key = self._get_cache_key("get_logs_by_cost_range", 
+                                      min_cost=min_cost, 
+                                      max_cost=max_cost, 
+                                      limit=limit)
+        cached_result = self._get_cached_result(cache_key)
+        if cached_result is not None:
+            return cached_result
+            
         try:
-            return self.db.get_logs_by_cost_range(min_cost, max_cost, limit)
+            result = self.db.get_logs_by_cost_range(min_cost, max_cost, limit)
+            self._cache_result(cache_key, result)
+            return result
         except Exception as e:
             logger.error(f"Failed to retrieve logs by cost range: {e}")
             raise
     
     def get_unique_functions(self) -> List[str]:
-        """Get list of unique function names from database."""
+        """Get list of unique function names from database with caching."""
+        cache_key = self._get_cache_key("get_unique_functions")
+        cached_result = self._get_cached_result(cache_key)
+        if cached_result is not None:
+            return cached_result
+            
         try:
-            return self.db.get_unique_functions()
+            result = self.db.get_unique_functions()
+            self._cache_result(cache_key, result)
+            return result
         except Exception as e:
             logger.error(f"Failed to retrieve unique functions: {e}")
             raise

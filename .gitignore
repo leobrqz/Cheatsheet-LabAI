@@ -3,3 +3,4 @@
 .gradio
 src/db/
 **/__pycache__/
+src/logs/

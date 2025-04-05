@@ -25,6 +25,8 @@ from datetime import datetime, timedelta
 from logger import get_logger
 from typing import Union, List, Any
 from query_builder import LogQueryBuilder
+from pathlib import Path
+import json
 
 # Get logger instance
 logger = get_logger(__name__)
@@ -35,6 +37,67 @@ load_dotenv()
 # Initialize OpenAI client and database
 llm = OpenAIClient.get_instance()
 db = DatabaseInstance.get_instance()
+
+def migrate_default_templates():
+    """Migrate default templates to database if they don't exist."""
+    try:
+        # Define default templates
+        default_templates = {
+            "Study Guide": {
+                "type": "study",
+                "structure": {
+                    "sections": [
+                        {"title": "Key Concepts", "content": "List and explain the main concepts"},
+                        {"title": "Important Formulas", "content": "List and explain key formulas"},
+                        {"title": "Examples", "content": "Provide worked examples"},
+                        {"title": "Practice Problems", "content": "Include practice problems with solutions"}
+                    ]
+                }
+            },
+            "Coding Cheatsheet": {
+                "type": "coding",
+                "structure": {
+                    "sections": [
+                        {"title": "Syntax", "content": "Show basic syntax and examples"},
+                        {"title": "Common Functions", "content": "List frequently used functions"},
+                        {"title": "Best Practices", "content": "Include coding best practices"},
+                        {"title": "Tips & Tricks", "content": "Add useful tips and tricks"}
+                    ]
+                }
+            },
+            "Quick Reference Card": {
+                "type": "reference",
+                "structure": {
+                    "sections": [
+                        {"title": "Overview", "content": "Brief overview of the topic"},
+                        {"title": "Key Points", "content": "List of key points to remember"},
+                        {"title": "Common Issues", "content": "List common issues and solutions"},
+                        {"title": "Resources", "content": "Additional resources for learning"}
+                    ]
+                }
+            }
+        }
+
+        # Get existing templates from database
+        existing_templates = db.get_all_templates()
+        existing_names = {t['name'] for t in existing_templates}
+
+        # Add missing default templates
+        for name, template in default_templates.items():
+            if name not in existing_names:
+                logger.info(f"Adding default template: {name}")
+                db.add_template(
+                    name=name,
+                    template_type=template['type'],
+                    structure=template['structure']
+                )
+
+        logger.info("Default templates migration completed successfully")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error migrating default templates: {e}")
+        return False
 
 def generate_cheatsheet_and_summarize(prompt, theme, subject, template_name, style, exemplified, complexity, audience, enforce_formatting):
     """Generates a cheatsheet and creates a summary for use in other features."""
@@ -53,221 +116,295 @@ def generate_cheatsheet_and_summarize(prompt, theme, subject, template_name, sty
         error_message = f"Error: {str(e)}"
         return error_message, error_message, ""
 
-def check_summarized_content(summarized_content, feature_name, generate_func, *args):
-    """Checks if a cheatsheet has been generated before allowing feature generation."""
-    if not summarized_content or summarized_content.strip() == "":
-        return f"Please generate a cheatsheet first before using the {feature_name} feature.", ""
+def update_template_list(template_search: str, template_filter: str) -> List[List[str]]:
+    """Update the template list with search and filter functionality."""
+    try:
+        # Get all templates from database
+        templates = db.get_all_templates()
+        formatted_templates = []
+        
+        for template in templates:
+            try:
+                # Parse ISO format timestamp
+                updated_at = datetime.fromisoformat(template['updated_at'])
+                formatted_date = updated_at.strftime('%Y-%m-%d')
+                
+                formatted_templates.append([
+                    template['name'],
+                    template['type'],
+                    formatted_date
+                ])
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Error formatting template date: {e}")
+                # Use current date as fallback
+                formatted_date = datetime.now().strftime('%Y-%m-%d')
+                formatted_templates.append([
+                    template['name'],
+                    template['type'],
+                    formatted_date
+                ])
+        
+        # Apply search filter if provided
+        if template_search:
+            search_lower = template_search.lower()
+            formatted_templates = [
+                t for t in formatted_templates 
+                if search_lower in t[0].lower()
+            ]
+        
+        # Apply type filter if provided
+        if template_filter and template_filter != 'all':
+            formatted_templates = [
+                t for t in formatted_templates 
+                if t[1].lower() == template_filter.lower()
+            ]
+        
+        # Update the template selector dropdown
+        template_names = [t[0] for t in formatted_templates]
+        
+        return formatted_templates, gr.update(choices=template_names)
+        
+    except Exception as e:
+        logger.error(f"Error updating template list: {e}")
+        return [], gr.update(choices=[])
+
+def update_template_dropdown():
+    """Update the template dropdown with all available templates."""
+    try:
+        # Get all templates from config (includes both default and custom)
+        all_templates = list(config.get_instance().get_templates().keys())
+        return gr.update(choices=all_templates)
+    except Exception as e:
+        logger.error(f"Error updating template dropdown: {e}")
+        return gr.update(choices=[])
+
+def save_template(name, type, content):
+    """Save template to database."""
+    if not name or not content:
+        return "Template name and content are required", update_template_list("", "all")
     
-    result = generate_func(summarized_content, *args)
-    if isinstance(result, tuple):
-        return result
-    return result, result  # Return both formatted and raw content if only one value is returned
+    try:
+        # Check if template already exists
+        db = DatabaseInstance.get_instance()
+        templates = db.get_all_templates()
+        
+        # Find the template by name
+        existing_template = next((t for t in templates if t['name'] == name), None)
+        
+        if existing_template:
+            # Update existing template
+            db.update_template(existing_template['id'], name, type, content)
+            message = f"Template '{name}' updated successfully"
+        else:
+            # Create new template
+            db.add_template(name, type, content)
+            message = f"Template '{name}' saved successfully"
+        
+        # Update UI components
+        templates, dropdown = update_template_list("", "all")
+        
+        return message, templates, dropdown
+    except Exception as e:
+        logger.error(f"Error saving template: {e}")
+        return f"Error saving template: {str(e)}", update_template_list("", "all"), gr.update(choices=[])
+
+def delete_template(template_name):
+    """Show delete confirmation dialog."""
+    # Check if template_name is empty or None
+    if not template_name:
+        return "No template selected", gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)
+    
+    return (
+        f"Are you sure you want to delete the template '{template_name}'?",
+        gr.update(visible=True),
+        gr.update(visible=True),
+        gr.update(visible=True),
+        gr.update(visible=True)
+    )
+
+def confirm_delete(template_name):
+    """Delete the selected template after confirmation."""
+    # Check if template_name is empty or None
+    if not template_name:
+        templates, dropdown = update_template_list("", "all")
+        return "No template selected", templates, dropdown, gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)
+    
+    try:
+        # Get template from database
+        db = DatabaseInstance.get_instance()
+        templates = db.get_all_templates()
+        
+        # Find the template by name
+        template = next((t for t in templates if t['name'] == template_name), None)
+        
+        if template:
+            # Delete the template using its ID
+            success = db.delete_template(template['id'])
+            if not success:
+                raise RuntimeError("Failed to delete template from database")
+        else:
+            raise ValueError(f"Template '{template_name}' not found")
+        
+        # Update UI components
+        templates, dropdown = update_template_list("", "all")
+        
+        return (
+            f"Template '{template_name}' deleted successfully",
+            templates,
+            dropdown,
+            gr.update(visible=False),
+            gr.update(visible=False),
+            gr.update(visible=False)
+        )
+    except Exception as e:
+        logger.error(f"Error deleting template: {e}")
+        templates, dropdown = update_template_list("", "all")
+        return (
+            f"Error deleting template: {str(e)}",
+            templates,
+            dropdown,
+            gr.update(visible=False),
+            gr.update(visible=False),
+            gr.update(visible=False)
+        )
 
 def quiz_with_check(summarized_content, quiz_type, difficulty, quiz_count):
-    """Checks if a cheatsheet has been generated before allowing quiz generation."""
-    return check_summarized_content(summarized_content, "Quiz", generate_quiz, quiz_type, difficulty, quiz_count)
+    """Generate a quiz with error handling."""
+    if not summarized_content:
+        return "Please generate a cheatsheet first", "No content available for quiz generation"
+    
+    try:
+        quiz = generate_quiz(summarized_content, quiz_type, difficulty, quiz_count)
+        return quiz, quiz
+    except Exception as e:
+        logger.error(f"Error generating quiz: {e}")
+        error_message = f"Error generating quiz: {str(e)}"
+        return error_message, error_message
 
 def flashcards_with_check(summarized_content, flashcard_count):
-    """Checks if a cheatsheet has been generated before allowing flashcard generation."""
-    if not summarized_content or summarized_content.strip() == "":
-        return "Please generate a cheatsheet first before using the Flashcards feature.", ""
+    """Generate flashcards with error handling."""
+    if not summarized_content:
+        return "Please generate a cheatsheet first", "No content available for flashcard generation"
     
-    result = generate_flashcards(summarized_content, flashcard_count)
-    return result, result  # Return both formatted and raw content
+    try:
+        flashcards = generate_flashcards(summarized_content, flashcard_count)
+        return flashcards, flashcards
+    except Exception as e:
+        logger.error(f"Error generating flashcards: {e}")
+        error_message = f"Error generating flashcards: {str(e)}"
+        return error_message, error_message
 
 def problems_with_check(summarized_content, problem_type, problem_count):
-    """Checks if a cheatsheet has been generated before allowing problem generation."""
-    return check_summarized_content(summarized_content, "Practice Problems", generate_practice_problems, problem_type, problem_count)
+    """Generate practice problems with error handling."""
+    if not summarized_content:
+        return "Please generate a cheatsheet first", "No content available for problem generation"
+    
+    try:
+        problems = generate_practice_problems(summarized_content, problem_type, problem_count)
+        return problems, problems
+    except Exception as e:
+        logger.error(f"Error generating practice problems: {e}")
+        error_message = f"Error generating practice problems: {str(e)}"
+        return error_message, error_message
 
 def summary_with_check(summarized_content, summary_level, summary_focus):
-    """Checks if a cheatsheet has been generated before allowing summary generation."""
-    return check_summarized_content(summarized_content, "Summary", generate_summary, summary_level, summary_focus)
+    """Generate a summary with error handling."""
+    if not summarized_content:
+        return "Please generate a cheatsheet first", "No content available for summary generation"
+    
+    try:
+        summary = generate_summary(summarized_content, summary_level, summary_focus)
+        return summary, summary
+    except Exception as e:
+        logger.error(f"Error generating summary: {e}")
+        error_message = f"Error generating summary: {str(e)}"
+        return error_message, error_message
 
 def update_logs():
-    """Update the logs display with the latest token usage data."""
-    logs = get_token_logs()
-    if not logs:
-        return [], "No usage data available"
-    
-    # Use LogFormatter to format logs
-    log_data = LogFormatter.format_for_display(logs)
-    
-    # Calculate totals
-    totals = LogFormatter.calculate_totals(logs)
-    stats = LogFormatter.format_stats(totals)
-    
-    return log_data, stats
-
-def update_logs_by_date_range(start_date, end_date, limit):
-    """Update the logs display with data filtered by date range."""
+    """Update the token usage logs table."""
     try:
-        # Validate dates
-        start_date = validate_date_format(start_date)
-        end_date = validate_date_format(end_date)
-        
-        logs = get_token_logs_by_date_range(start_date, end_date, limit)
+        logs = get_token_logs()
         if not logs:
-            return [], "No usage data available for the selected date range"
+            return [], "No usage data available"
         
-        # Use LogFormatter to format logs
-        log_data = LogFormatter.format_for_display(logs)
+        # Format logs for display
+        formatted_logs = []
+        for log in logs:
+            formatted_logs.append([
+                log['timestamp'],
+                log['function'],
+                log['prompt_tokens'],
+                log['completion_tokens'],
+                log['total_tokens'],
+                f"${log['cost']:.4f}"
+            ])
         
-        # Calculate totals for the date range
-        totals = LogFormatter.calculate_totals(logs)
-        stats = LogFormatter.format_stats(totals)
+        # Calculate total usage by function
+        usage_by_function = calculate_total_usage_by_function()
         
-        return log_data, stats
-    except ValueError as e:
-        return [], f"Error: {str(e)}"
-
-def update_logs_by_function(function_name, limit):
-    """Update the logs display with data filtered by function."""
-    logs = get_token_logs_by_function(function_name, limit)
-    if not logs:
-        return [], f"No usage data available for function: {function_name}"
-    
-    # Use LogFormatter to format logs
-    log_data = LogFormatter.format_for_display(logs)
-    
-    # Calculate totals for the function
-    totals = LogFormatter.calculate_totals(logs)
-    stats = LogFormatter.format_stats(totals)
-    
-    return log_data, stats
-
-def update_logs_by_token_range(min_tokens, max_tokens, limit):
-    """Update the logs display with data filtered by token range."""
-    logs = get_token_logs_by_token_range(min_tokens, max_tokens, limit)
-    if not logs:
-        return [], f"No usage data available for token range: {min_tokens} - {max_tokens}"
-    
-    # Use LogFormatter to format logs
-    log_data = LogFormatter.format_for_display(logs)
-    
-    # Calculate totals for the token range
-    totals = LogFormatter.calculate_totals(logs)
-    stats = LogFormatter.format_stats(totals)
-    
-    return log_data, stats
-
-def update_logs_by_cost_range(min_cost, max_cost, limit):
-    """Update the logs display with data filtered by cost range."""
-    logs = get_token_logs_by_cost_range(min_cost, max_cost, limit)
-    if not logs:
-        return [], f"No usage data available for cost range: ${min_cost:.4f} - ${max_cost:.4f}"
-    
-    # Use LogFormatter to format logs
-    log_data = LogFormatter.format_for_display(logs)
-    
-    # Calculate totals for the cost range
-    totals = LogFormatter.calculate_totals(logs)
-    stats = LogFormatter.format_stats(totals)
-    
-    return log_data, stats
-
-def validate_date_format(date_str: str) -> str:
-    """Validate and format date string."""
-    try:
-        if not date_str:
-            raise ValueError("Date cannot be empty")
-        # Try to parse the date
-        date_obj = datetime.strptime(date_str, "%Y-%m-%d")
-        return date_obj.strftime("%Y-%m-%d")
-    except ValueError as e:
-        raise ValueError(f"Invalid date format. Please use YYYY-MM-DD format: {str(e)}")
-
-def format_number(num: Union[int, float]) -> str:
-    """Format number with thousands separator."""
-    if isinstance(num, int):
-        return f"{num:,}"
-    return f"{num:,.2f}"
-
-def update_usage_by_function() -> str:
-    """Update the usage statistics grouped by function."""
-    function_usage = calculate_total_usage_by_function()
-    if not function_usage:
-        return "No usage data available by function"
-    
-    # Calculate totals
-    total_tokens = sum(stats['total_tokens'] for stats in function_usage.values())
-    total_cost = sum(stats['total_cost'] for stats in function_usage.values())
-    
-    # Create a markdown table for function usage
-    markdown = "### Usage Overview by Function\n\n"
-    markdown += "| Function | Total Tokens | % of Total | Cost | % of Total |\n"
-    markdown += "|----------|--------------|------------|------|------------|\n"
-    
-    # Sort functions by total tokens in descending order
-    sorted_functions = sorted(
-        function_usage.items(),
-        key=lambda x: x[1]['total_tokens'],
-        reverse=True
-    )
-    
-    for function_name, stats in sorted_functions:
-        token_percentage = (stats['total_tokens'] / total_tokens * 100) if total_tokens > 0 else 0
-        cost_percentage = (stats['total_cost'] / total_cost * 100) if total_cost > 0 else 0
-        
-        markdown += (
-            f"| {function_name} | "
-            f"{format_number(stats['total_tokens'])} | "
-            f"{token_percentage:.1f}% | "
-            f"${format_number(stats['total_cost'])} | "
-            f"{cost_percentage:.1f}% |\n"
-        )
-    
-    # Add total row
-    markdown += "|----------|--------------|------------|------|------------|\n"
-    markdown += (
-        f"| **Total** | "
-        f"**{format_number(total_tokens)}** | "
-        f"**100%** | "
-        f"**${format_number(total_cost)}** | "
-        f"**100%** |\n"
-    )
-    
-    return markdown
+        return formatted_logs, usage_by_function
+    except Exception as e:
+        logger.error(f"Error updating logs: {e}")
+        return [], f"Error updating logs: {str(e)}"
 
 def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_tokens, min_cost, max_cost, limit):
-    """Apply multiple filters to the logs."""
+    """Apply combined filters to token usage logs."""
     try:
-        # Create query builder
+        # Validate date format
+        if start_date and not validate_date_format(start_date):
+            return [], "Invalid start date format. Use YYYY-MM-DD"
+        if end_date and not validate_date_format(end_date):
+            return [], "Invalid end date format. Use YYYY-MM-DD"
+        
+        # Build query
         query_builder = LogQueryBuilder()
         
-        # Add date range if provided
-        if start_date and end_date:
-            start_date = validate_date_format(start_date)
-            end_date = validate_date_format(end_date)
-            query_builder.add_date_range(start_date, end_date)
+        if start_date:
+            query_builder.add_date_range_filter(start_date, end_date or datetime.now().strftime('%Y-%m-%d'))
         
-        # Add function filter if provided
         if function_name:
             query_builder.add_function_filter(function_name)
         
-        # Add token range if provided
-        if min_tokens is not None and max_tokens is not None:
-            query_builder.add_token_range(min_tokens, max_tokens)
+        if min_tokens is not None:
+            query_builder.add_token_range_filter(min_tokens, max_tokens)
         
-        # Add cost range if provided
-        if min_cost is not None and max_cost is not None:
-            query_builder.add_cost_range(min_cost, max_cost)
+        if min_cost is not None:
+            query_builder.add_cost_range_filter(min_cost, max_cost)
         
-        # Execute query using the query builder
-        logs = db.query_logs(query_builder, limit)
+        if limit:
+            query_builder.set_limit(limit)
         
-        if not logs:
-            return [], "No logs match the selected criteria"
+        # Execute query
+        logs = db.query_logs(query_builder.build())
         
-        # Format results
-        log_data = LogFormatter.format_for_display(logs)
+        # Format logs for display
+        formatted_logs = []
+        for log in logs:
+            formatted_logs.append([
+                log['timestamp'],
+                log['function'],
+                log['prompt_tokens'],
+                log['completion_tokens'],
+                log['total_tokens'],
+                f"${log['cost']:.4f}"
+            ])
         
-        # Calculate totals
-        totals = LogFormatter.calculate_totals(logs)
-        stats = LogFormatter.format_stats(totals)
+        # Calculate total usage by function for filtered logs
+        usage_by_function = calculate_total_usage_by_function(logs)
         
-        return log_data, stats
-    except ValueError as e:
-        return [], f"Error: {str(e)}"
+        return formatted_logs, usage_by_function
+    except Exception as e:
+        logger.error(f"Error applying filters: {e}")
+        return [], f"Error applying filters: {str(e)}"
+
+def update_usage_by_function():
+    """Update the usage by function statistics."""
+    try:
+        usage_by_function = calculate_total_usage_by_function()
+        return usage_by_function
+    except Exception as e:
+        logger.error(f"Error updating usage by function: {e}")
+        return f"Error updating usage by function: {str(e)}"
 
 # Create Gradio interface using Blocks
 with gr.Blocks(css=config.CSS) as demo:
@@ -283,7 +420,7 @@ with gr.Blocks(css=config.CSS) as demo:
                 theme = gr.Textbox(label="Theme", placeholder="Enter the theme...")
                 subject = gr.Textbox(label="Subject", placeholder="Enter the subject...")
                 template_name = gr.Dropdown(
-                    choices=list(config.TEMPLATES.keys()),
+                    choices=list(config.get_instance().get_templates().keys()),
                     label="Template",
                     value="Study Guide"
                 )
@@ -343,12 +480,20 @@ with gr.Blocks(css=config.CSS) as demo:
                         scale=1
                     )
                 
+                # Template Selection Dropdown
+                template_selector = gr.Dropdown(
+                    label="Select Template",
+                    choices=[],
+                    value=None,
+                    interactive=True
+                )
+                
                 # Template List
                 template_list = gr.Dataframe(
-                    headers=["Name", "Type", "Last Modified"],
+                    headers=["Name", "Type", "Last Updated"],
                     datatype=["str", "str", "str"],
                     label="Templates",
-                    interactive=False
+                    interactive=True
                 )
                 
                 # Template Actions
@@ -679,110 +824,75 @@ with gr.Blocks(css=config.CSS) as demo:
     )
 
     # Template Management Event Handlers
-    def update_template_list(search_query="", filter_type="All"):
-        """Update the template list with current templates."""
-        # Placeholder for template list update with search and filter
-        templates = [
-            ["Study Guide", "Default", "2024-04-05"],
-            ["Custom Template", "Custom", "2024-04-05"],
-            ["Math Formula Sheet", "Default", "2024-04-04"],
-            ["Programming Reference", "Custom", "2024-04-03"]
-        ]
-        
-        # Apply search filter
-        if search_query:
-            templates = [t for t in templates if search_query.lower() in t[0].lower()]
-        
-        # Apply type filter
-        if filter_type != "All":
-            templates = [t for t in templates if t[1] == filter_type]
-            
-        return templates
-
     def refresh_templates():
         """Refresh the template list."""
-        return update_template_list()
+        return update_template_list("", "all")
 
     def new_template():
         """Create a new template."""
         return "", "Custom", "# Enter template content in markdown format..."
 
-    def edit_template(template_data):
+    def edit_template(template_name):
         """Load template data into editor."""
-        if not template_data or len(template_data) == 0:
+        # Check if template_name is empty or None
+        if not template_name:
             return "", "Custom", "# Enter template content in markdown format..."
-        # Placeholder for template editing
-        return template_data[0][0], template_data[0][1], "# Template Content"
+        
+        try:
+            # Check if it's a default template
+            default_templates = config.get_instance().get_templates()
+            if template_name in default_templates:
+                return template_name, "Default", default_templates[template_name]["structure"]
+            
+            # Get template from database
+            db = DatabaseInstance.get_instance()
+            templates = db.get_all_templates()
+            
+            # Find the template by name
+            template = next((t for t in templates if t['name'] == template_name), None)
+            
+            if template:
+                return template['name'], template['type'], template['structure']
+            else:
+                return template_name, "Custom", "# Template Content"
+        except Exception as e:
+            logger.error(f"Error loading template: {e}")
+            return "", "Custom", "# Error loading template"
 
-    def delete_template(template_data):
-        """Show delete confirmation dialog."""
-        if not template_data or len(template_data) == 0:
-            return "No template selected", gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)
-        
-        template_name = template_data[0][0]
-        return (
-            f"Are you sure you want to delete the template '{template_name}'?",
-            gr.update(visible=True),
-            gr.update(visible=True),
-            gr.update(visible=True)
-        )
-    
-    def confirm_delete(template_data):
-        """Delete the selected template after confirmation."""
-        if not template_data or len(template_data) == 0:
-            return "No template selected", update_template_list(), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)
-        
-        template_name = template_data[0][0]
-        # Placeholder for template deletion
-        return (
-            f"Template '{template_name}' deleted successfully",
-            update_template_list(),
-            gr.update(visible=False),
-            gr.update(visible=False),
-            gr.update(visible=False)
-        )
-    
     def cancel_delete():
         """Cancel template deletion."""
         return (
             "Deletion cancelled",
             gr.update(visible=False),
             gr.update(visible=False),
+            gr.update(visible=False),
             gr.update(visible=False)
         )
-
-    def save_template(name, type, content):
-        """Save template to database."""
-        if not name or not content:
-            return "Template name and content are required", update_template_list()
-        # Placeholder for template saving
-        return f"Template '{name}' saved successfully", update_template_list()
 
     def preview_template(content):
         """Preview template content."""
         if not content:
             return "No content to preview"
-        # Placeholder for template preview
         return content
 
     # Search and filter event handlers
     template_search.change(
         fn=update_template_list,
         inputs=[template_search, template_filter],
-        outputs=[template_list]
+        outputs=[template_list, template_selector]
     )
     
     template_filter.change(
         fn=update_template_list,
         inputs=[template_search, template_filter],
-        outputs=[template_list]
+        outputs=[template_list, template_selector]
     )
     
     # Refresh templates button
     refresh_templates_btn.click(
-        fn=refresh_templates,
+        fn=lambda: update_template_list("", "all"),
         inputs=[],
-        outputs=[template_list]
+        outputs=[template_list, template_selector]
     )
 
     # New template button
@@ -795,36 +905,40 @@ with gr.Blocks(css=config.CSS) as demo:
     # Edit template button
     edit_template_btn.click(
         fn=edit_template,
-        inputs=[template_list],
+        inputs=[template_selector],
         outputs=[template_editor_name, template_editor_type, template_editor_content]
     )
 
     # Delete template button
     delete_template_btn.click(
         fn=delete_template,
-        inputs=[template_list],
+        inputs=[template_selector],
         outputs=[template_preview, delete_confirmation, delete_confirm_row, confirm_delete_btn, cancel_delete_btn]
     )
 
     # Confirm delete button
     confirm_delete_btn.click(
         fn=confirm_delete,
-        inputs=[template_list],
-        outputs=[template_preview, template_list, delete_confirmation, delete_confirm_row, delete_confirm_row]
+        inputs=[template_selector],
+        outputs=[template_preview, template_list, template_selector, delete_confirmation, delete_confirm_row, delete_confirm_row]
     )
     
     # Cancel delete button
     cancel_delete_btn.click(
         fn=cancel_delete,
         inputs=[],
-        outputs=[template_preview, delete_confirmation, delete_confirm_row, delete_confirm_row]
+        outputs=[template_preview, delete_confirmation, delete_confirm_row, delete_confirm_row, confirm_delete_btn]
     )
 
     # Save template button
     save_template_btn.click(
         fn=save_template,
         inputs=[template_editor_name, template_editor_type, template_editor_content],
-        outputs=[template_preview, template_list]
+        outputs=[template_preview, template_list, template_selector]
+    ).then(
+        fn=update_template_dropdown,
+        inputs=[],
+        outputs=[template_name]
     )
 
     # Preview template button
@@ -835,7 +949,17 @@ with gr.Blocks(css=config.CSS) as demo:
     )
 
     # Initialize template list with initial data
-    template_list.value = update_template_list()
+    template_list.value, template_selector.value = update_template_list("", "all")
+
+    # Initialize template dropdown with all templates
+    template_name.value = update_template_dropdown()
+
+    # Make sure the template list is properly set up for selection
+    template_list.select(
+        fn=lambda x: x,  # Just pass through the selection
+        inputs=[template_list],
+        outputs=[template_list]
+    )
 
     # Quiz generation event handler
     generate_quiz_btn.click(

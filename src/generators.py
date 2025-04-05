@@ -459,10 +459,10 @@ def construct_input_prompt(prompt, theme, subject, complexity, audience, style, 
 
 @make_api_call
 def generate_cheatsheet(prompt, theme, subject, template_name, style, exemplified, complexity, audience, enforce_formatting):
-    """Generate a cheatsheet based on the input parameters."""
+    """Generate a cheatsheet based on the given parameters."""
     try:
-        # Get the template structure from config
-        template = config.TEMPLATES.get(template_name, {})
+        # Get template from config
+        template = config.get_instance().get_templates().get(template_name, {})
         
         # Construct the full prompt
         full_prompt = f"""Create a cheatsheet about {subject} with the following parameters:

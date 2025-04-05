@@ -42,47 +42,6 @@ class ConfigManager:
         if not 0 <= self.TEMPERATURE <= 1:
             raise ValueError("Temperature must be between 0 and 1")
         
-        # Load templates from external file if exists
-        templates_path = Path("src/config/templates.json")
-        if templates_path.exists():
-            with open(templates_path, 'r') as f:
-                self.TEMPLATES = json.load(f)
-        else:
-            self.TEMPLATES = {
-                "Study Guide": {
-                    "structure": """
-                        Use as overall structure for the cheatsheet the following layout:
-                        1. **Overview:** A brief introduction to the topic.
-                        2. **Key Concepts:** A detailed list of key points.
-                        3. **In-Depth Analysis:** Further explanation of complex ideas.
-                        4. **Summary:** A concise summary of the content.
-                        (...)
-                        This is a overview of the layout, you can add more sections if you think it is necessary or tweak it.
-                    """
-                },
-                "Coding Cheatsheet": {
-                    "structure": """
-                        Use as overall structure for the cheatsheet the following layout:
-                        1. **Code Snippets:** Provide essential code examples.
-                        2. **Explanation:** Briefly explain each code snippet.
-                        3. **Best Practices:** List tips and best practices.
-                        4. **References:** Include links or citations for further reading.
-                        (...)
-                        This is a overview of the layout, you can add more sections if you think it is necessary or tweak it.
-                    """
-                },
-                "Quick Reference Card": {
-                    "structure": """
-                        Use as overall structure for the cheatsheet the following layout:
-                        1. **Header:** Title and quick context.
-                        2. **Bullet Points:** Concise, actionable points.
-                        3. **Footer:** A quick summary or conclusion.
-                        (...)
-                        This is a overview of the layout, you can add more sections if you think it is necessary or tweak it.
-                    """
-                }
-            }
-        
         # Load learning features from external file if exists
         features_path = Path("src/config/features.json")
         if features_path.exists():
@@ -144,6 +103,27 @@ class ConfigManager:
         
         logger.info("Configuration loaded successfully")
     
+    def get_templates(self) -> Dict[str, Dict[str, Any]]:
+        """Get all templates from the database."""
+        try:
+            # Get templates from database
+            from singletons import DatabaseInstance
+            db = DatabaseInstance.get_instance()
+            templates = db.get_all_templates()
+            
+            # Convert to expected format
+            template_dict = {}
+            for template in templates:
+                template_dict[template['name']] = {
+                    'type': template['type'],
+                    'structure': template['structure']
+                }
+            
+            return template_dict
+        except Exception as e:
+            logger.error(f"Error loading templates from database: {e}")
+            return {}
+    
     @classmethod
     def get_instance(cls) -> 'ConfigManager':
         """Get the singleton instance of ConfigManager."""
@@ -162,10 +142,6 @@ class ConfigManager:
     def get_temperature(self) -> float:
         """Get the temperature setting."""
         return self.TEMPERATURE
-    
-    def get_templates(self) -> Dict[str, Any]:
-        """Get the templates configuration."""
-        return self.TEMPLATES
     
     def get_learning_features(self) -> Dict[str, Any]:
         """Get the learning features configuration."""

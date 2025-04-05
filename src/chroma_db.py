@@ -46,34 +46,52 @@ class ChromaDatabase:
         return cls._instance
     
     def __init__(self):
-        if self._initialized:
+        """Initialize the ChromaDatabase instance with proper error handling."""
+        if getattr(self, '_initialized', False):
             return
             
-        with self._lock:  # Ensure thread-safe initialization
-            if self._initialized:  # Double-check pattern
+        with self._lock:
+            if getattr(self, '_initialized', False):
                 return
                 
-            # Create the database directory if it doesn't exist
-            self.db_path = os.path.join('..', 'data', 'chroma')
-            os.makedirs(self.db_path, exist_ok=True)
-            
-            # Initialize Chroma client with persistent storage
-            self.client = chromadb.PersistentClient(
-                path=self.db_path,
-                settings=Settings(
-                    allow_reset=True,
-                    is_persistent=True,
-                    persist_directory=self.db_path
+            try:
+                # Create the database directory if it doesn't exist
+                self.db_path = os.path.join('..', 'data', 'chroma')
+                os.makedirs(self.db_path, exist_ok=True)
+                
+                # Initialize Chroma client with persistent storage
+                self.client = chromadb.PersistentClient(
+                    path=self.db_path,
+                    settings=Settings(
+                        allow_reset=True,
+                        is_persistent=True,
+                        persist_directory=self.db_path
+                    )
                 )
-            )
-            
-            # Initialize thread-local storage
-            self._local = threading.local()
-            self._collection_cache = {}  # Add collection cache
-            self._collection_cache_lock = threading.Lock()  # Add cache lock
-            
-            self._initialized = True
-            logger.info(f"Initialized Chroma database at {self.db_path}")
+                
+                # Initialize thread-local storage
+                self._local = threading.local()
+                self._collection_cache = {}
+                self._collection_cache_lock = threading.Lock()
+                
+                # Verify client initialization
+                if not self.client:
+                    raise RuntimeError("Failed to initialize ChromaDB client")
+                
+                # Test connection by creating a collection
+                test_collection = self.client.get_or_create_collection(
+                    name="test_connection",
+                    metadata={"description": "Test collection for initialization"}
+                )
+                if not test_collection:
+                    raise RuntimeError("Failed to create test collection")
+                
+                self._initialized = True
+                logger.info(f"Successfully initialized Chroma database at {self.db_path}")
+            except Exception as e:
+                self._initialized = False
+                logger.error(f"Error initializing ChromaDatabase: {e}")
+                raise RuntimeError(f"Failed to initialize ChromaDatabase: {e}")
     
     def __del__(self):
         """Cleanup when the database instance is destroyed."""
@@ -503,4 +521,170 @@ class ChromaDatabase:
             })
             
         logger.debug(f"Formatted {len(formatted_results)} results")
-        return formatted_results 
+        return formatted_results
+
+    @handle_chroma_errors
+    def _get_templates_collection(self):
+        """Get or create the templates collection with thread-safe access."""
+        thread_id = threading.get_ident()
+        
+        # Check cache first
+        with self._collection_cache_lock:
+            if f"templates_{thread_id}" in self._collection_cache:
+                return self._collection_cache[f"templates_{thread_id}"]
+        
+        # If not in cache, create new collection with proper locking
+        with self._collection_lock:
+            collection = self.client.get_or_create_collection(
+                name="templates",
+                metadata={"description": "Template storage for cheatsheets"}
+            )
+            
+            # Update cache
+            with self._collection_cache_lock:
+                self._collection_cache[f"templates_{thread_id}"] = collection
+            
+            return collection
+
+    @handle_chroma_errors
+    def add_template(self, name: str, type: str, structure: str) -> str:
+        """Add a new template to the database."""
+        # Generate unique ID
+        template_id = f"template_{datetime.now().timestamp()}"
+        
+        # Prepare metadata with ISO format timestamps
+        now = datetime.now()
+        template_metadata = {
+            "name": name,
+            "type": type,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat()
+        }
+        
+        # Add to collection
+        collection = self._get_templates_collection()
+        collection.add(
+            ids=[template_id],
+            metadatas=[template_metadata],
+            documents=[structure]
+        )
+        
+        return template_id
+
+    @handle_chroma_errors
+    def get_template(self, template_id: str) -> Dict[str, Any]:
+        """Get a template by ID."""
+        collection = self._get_templates_collection()
+        result = collection.get(ids=[template_id])
+        
+        if not result or not result['ids']:
+            raise ValueError(f"Template not found: {template_id}")
+            
+        return {
+            "id": result['ids'][0],
+            "name": result['metadatas'][0]['name'],
+            "type": result['metadatas'][0]['type'],
+            "structure": result['documents'][0],
+            "created_at": result['metadatas'][0]['created_at'],
+            "updated_at": result['metadatas'][0]['updated_at']
+        }
+
+    @handle_chroma_errors
+    def get_all_templates(self) -> List[Dict[str, Any]]:
+        """Get all templates with improved error handling."""
+        try:
+            if not hasattr(self, '_initialized') or not self._initialized:
+                raise RuntimeError("ChromaDatabase not properly initialized")
+                
+            if not hasattr(self, 'client'):
+                raise RuntimeError("ChromaDB client not initialized")
+            
+            collection = self._get_templates_collection()
+            if not collection:
+                logger.warning("Templates collection not found or could not be created")
+                return []
+                
+            results = collection.get()
+            if not results or not results.get('ids'):
+                logger.debug("No templates found in collection")
+                return []
+            
+            templates = []
+            for i in range(len(results['ids'])):
+                try:
+                    templates.append({
+                        "id": results['ids'][i],
+                        "name": results['metadatas'][i]['name'],
+                        "type": results['metadatas'][i]['type'],
+                        "structure": results['documents'][i],
+                        "created_at": results['metadatas'][i]['created_at'],
+                        "updated_at": results['metadatas'][i]['updated_at']
+                    })
+                except (KeyError, IndexError) as e:
+                    logger.error(f"Error processing template at index {i}: {e}")
+                    continue
+            
+            return templates
+        except Exception as e:
+            logger.error(f"Error in get_all_templates: {e}")
+            return []
+
+    @handle_chroma_errors
+    def delete_template(self, template_id: str) -> bool:
+        """Delete a template."""
+        try:
+            # Get the templates collection
+            collection = self._get_templates_collection()
+            
+            # Check if template exists before deleting
+            result = collection.get(ids=[template_id])
+            if not result or not result['ids']:
+                logger.warning(f"Template not found for deletion: {template_id}")
+                return False
+            
+            # Delete the template
+            collection.delete(ids=[template_id])
+            
+            # Verify deletion
+            verify_result = collection.get(ids=[template_id])
+            if verify_result and verify_result['ids']:
+                logger.error(f"Template deletion failed: {template_id} still exists")
+                return False
+            
+            logger.info(f"Template deleted successfully: {template_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error deleting template {template_id}: {e}")
+            return False
+
+    @handle_chroma_errors
+    def update_template(self, template_id: str, name: str, type: str, structure: str) -> bool:
+        """Update an existing template."""
+        # Get the template collection
+        collection = self._get_templates_collection()
+        
+        # Check if template exists
+        result = collection.get(ids=[template_id])
+        if not result or not result['ids']:
+            raise ValueError(f"Template not found: {template_id}")
+        
+        # Get existing metadata to preserve created_at
+        existing_metadata = result['metadatas'][0]
+        
+        # Prepare metadata with ISO format timestamps
+        template_metadata = {
+            "name": name,
+            "type": type,
+            "created_at": existing_metadata.get('created_at', datetime.now().isoformat()),
+            "updated_at": datetime.now().isoformat()
+        }
+        
+        # Update the template
+        collection.update(
+            ids=[template_id],
+            metadatas=[template_metadata],
+            documents=[structure]
+        )
+        
+        return True 

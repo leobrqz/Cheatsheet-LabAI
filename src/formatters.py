@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Union
 from logger import get_logger
+from datetime import datetime
 
 # Get logger instance
 logger = get_logger(__name__)
@@ -29,12 +30,12 @@ class LogFormatter:
         """
         try:
             return [[
-                log['timestamp'],
+                log['timestamp'].strftime("%Y-%m-%d %H:%M:%S") if isinstance(log['timestamp'], datetime) else log['timestamp'],
                 log['function_name'],
                 log['prompt_tokens'],
                 log['completion_tokens'],
                 log['total_tokens'],
-                log['cost']
+                f"${log['cost']:.4f}"
             ] for log in logs]
         except KeyError as e:
             logger.error(f"Missing required field in log entry: {e}")
@@ -76,13 +77,20 @@ class LogFormatter:
         Returns:
             Formatted markdown string
         """
-        return f"""
-### Usage Statistics
-- **Total Prompt Tokens:** {stats['total_prompt_tokens']:,}
-- **Total Completion Tokens:** {stats['total_completion_tokens']:,}
-- **Total Tokens:** {stats['total_tokens']:,}
-- **Total Cost:** ${stats['total_cost']:.4f}
-        """
+        def format_number(num: Union[int, float]) -> str:
+            if isinstance(num, int):
+                return f"{num:,}"
+            return f"{num:,.2f}"
+
+        total_tokens = stats.get('total_tokens', 0)
+        total_cost = stats.get('total_cost', 0)
+        
+        return f"""### Usage Overview
+| Metric | Value |
+|--------|-------|
+| Total Tokens | {format_number(total_tokens)} |
+| Total Cost | ${format_number(total_cost)} |
+"""
     
     @staticmethod
     def calculate_totals(logs: List[Dict[str, Any]]) -> Dict[str, Any]:

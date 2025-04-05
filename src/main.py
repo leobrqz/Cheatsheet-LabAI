@@ -20,10 +20,10 @@ from generators import (
 )
 from utils import validate_date_format
 from formatters import LogFormatter
-from query_builder import LogQueryBuilder
 from singletons import OpenAIClient, DatabaseInstance
 from datetime import datetime, timedelta
 from logger import get_logger
+from typing import Union, List, Any
 
 # Get logger instance
 logger = get_logger(__name__)
@@ -164,22 +164,68 @@ def update_logs_by_cost_range(min_cost, max_cost, limit):
     
     return log_data, stats
 
-def update_usage_by_function():
+def validate_date_format(date_str: str) -> str:
+    """Validate and format date string."""
+    try:
+        if not date_str:
+            raise ValueError("Date cannot be empty")
+        # Try to parse the date
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+        return date_obj.strftime("%Y-%m-%d")
+    except ValueError as e:
+        raise ValueError(f"Invalid date format. Please use YYYY-MM-DD format: {str(e)}")
+
+def format_number(num: Union[int, float]) -> str:
+    """Format number with thousands separator."""
+    if isinstance(num, int):
+        return f"{num:,}"
+    return f"{num:,.2f}"
+
+def update_usage_by_function() -> str:
     """Update the usage statistics grouped by function."""
     function_usage = calculate_total_usage_by_function()
     if not function_usage:
         return "No usage data available by function"
     
+    # Calculate totals
+    total_tokens = sum(stats['total_tokens'] for stats in function_usage.values())
+    total_cost = sum(stats['total_cost'] for stats in function_usage.values())
+    
     # Create a markdown table for function usage
-    table = "### Usage Statistics by Function\n\n"
-    table += "| Function | Total Tokens | Cost |\n"
-    table += "|----------|--------------|------|\n"
+    markdown = "### Usage Overview by Function\n\n"
+    markdown += "| Function | Total Tokens | % of Total | Cost | % of Total |\n"
+    markdown += "|----------|--------------|------------|------|------------|\n"
     
-    for function_name, stats in function_usage.items():
-        if isinstance(stats, dict):
-            table += f"| {function_name} | {stats.get('total_tokens', 0):,} | ${stats.get('total_cost', 0):.4f} |\n"
+    # Sort functions by total tokens in descending order
+    sorted_functions = sorted(
+        function_usage.items(),
+        key=lambda x: x[1]['total_tokens'],
+        reverse=True
+    )
     
-    return table
+    for function_name, stats in sorted_functions:
+        token_percentage = (stats['total_tokens'] / total_tokens * 100) if total_tokens > 0 else 0
+        cost_percentage = (stats['total_cost'] / total_cost * 100) if total_cost > 0 else 0
+        
+        markdown += (
+            f"| {function_name} | "
+            f"{format_number(stats['total_tokens'])} | "
+            f"{token_percentage:.1f}% | "
+            f"${format_number(stats['total_cost'])} | "
+            f"{cost_percentage:.1f}% |\n"
+        )
+    
+    # Add total row
+    markdown += "|----------|--------------|------------|------|------------|\n"
+    markdown += (
+        f"| **Total** | "
+        f"**{format_number(total_tokens)}** | "
+        f"**100%** | "
+        f"**${format_number(total_cost)}** | "
+        f"**100%** |\n"
+    )
+    
+    return markdown
 
 def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_tokens, min_cost, max_cost, limit):
     """Apply multiple filters to the logs."""
@@ -205,8 +251,19 @@ def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_
         if min_cost is not None and max_cost is not None:
             query_builder.add_cost_range(min_cost, max_cost)
         
-        # Execute query
-        logs = db.query_logs(query_builder, limit)
+        # Execute query using the correct method
+        logs = get_token_logs()  # Get all logs first
+        
+        # Apply filters manually if any are set
+        if query_builder.has_filters():
+            filtered_logs = []
+            for log in logs:
+                if query_builder.matches_filters(log):
+                    filtered_logs.append(log)
+            logs = filtered_logs[:limit]  # Apply limit after filtering
+        else:
+            logs = logs[:limit]  # Apply limit to unfiltered logs
+        
         if not logs:
             return [], "No logs match the selected criteria"
         
@@ -215,12 +272,82 @@ def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_
         
         # Calculate totals
         totals = LogFormatter.calculate_totals(logs)
-        
         stats = LogFormatter.format_stats(totals)
         
         return log_data, stats
     except ValueError as e:
         return [], f"Error: {str(e)}"
+
+class LogQueryBuilder:
+    def __init__(self):
+        self.conditions: List[str] = []
+        self.parameters: List[Any] = []
+        # Initialize filter storage
+        self.date_range = None
+        self.function_name = None
+        self.token_range = None
+        self.cost_range = None
+    
+    def add_date_range(self, start_date: str, end_date: str) -> 'LogQueryBuilder':
+        """Add date range filter."""
+        self.date_range = (start_date, end_date)
+        return self
+    
+    def add_function_filter(self, function_name: str) -> 'LogQueryBuilder':
+        """Add function filter."""
+        self.function_name = function_name
+        return self
+    
+    def add_token_range(self, min_tokens: int, max_tokens: int) -> 'LogQueryBuilder':
+        """Add token range filter."""
+        self.token_range = (min_tokens, max_tokens)
+        return self
+    
+    def add_cost_range(self, min_cost: float, max_cost: float) -> 'LogQueryBuilder':
+        """Add cost range filter."""
+        self.cost_range = (min_cost, max_cost)
+        return self
+    
+    def has_filters(self):
+        """Check if any filters are set."""
+        return bool(self.date_range or self.function_name or self.token_range or self.cost_range)
+    
+    def matches_filters(self, log):
+        """Check if a log entry matches all the set filters."""
+        # Check date range
+        if self.date_range:
+            try:
+                # Parse the full timestamp from the log
+                timestamp = log.get('timestamp', '').split('.')[0]
+                log_date = datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S')
+                # Parse the date-only strings from filters and set time to start/end of day
+                start_date = datetime.strptime(self.date_range[0], '%Y-%m-%d').replace(hour=0, minute=0, second=0)
+                end_date = datetime.strptime(self.date_range[1], '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+                if not (start_date <= log_date <= end_date):
+                    return False
+            except (ValueError, KeyError) as e:
+                logger.error(f"Date parsing error: {str(e)} for log: {log}")
+                return False
+        
+        # Check function name
+        if self.function_name:
+            log_function = log.get('function_name', log.get('function', ''))
+            if log_function != self.function_name:
+                return False
+        
+        # Check token range
+        if self.token_range:
+            total_tokens = log.get('total_tokens', 0)
+            if not (self.token_range[0] <= total_tokens <= self.token_range[1]):
+                return False
+        
+        # Check cost range
+        if self.cost_range:
+            cost = log.get('cost', 0)
+            if not (self.cost_range[0] <= cost <= self.cost_range[1]):
+                return False
+        
+        return True
 
 # Create Gradio interface using Blocks
 with gr.Blocks(css=config.CSS) as demo:
@@ -269,8 +396,8 @@ with gr.Blocks(css=config.CSS) as demo:
             with gr.Column():
                 with gr.Tabs():
                     with gr.TabItem("Rendered Output"):
+                        cheatsheet_loading = gr.Markdown("", elem_classes="loading-text")
                         output = gr.Markdown(label="Generated Cheatsheet")
-                        loading_output = gr.Markdown(visible=True)
                     with gr.TabItem("Raw Text"):
                         raw_output = gr.Code(label="Raw Markdown", language="markdown")
     
@@ -306,8 +433,8 @@ with gr.Blocks(css=config.CSS) as demo:
                 generate_quiz_btn = gr.Button("Generate Quiz", scale=1)
             with gr.Tabs():
                 with gr.TabItem("Rendered Output"):
+                    quiz_loading = gr.Markdown("", elem_classes="loading-text")
                     quiz_output = gr.Markdown(label="Generated Quiz")
-                    quiz_loading = gr.Markdown(visible=True)
                 with gr.TabItem("Raw Text"):
                     raw_quiz_output = gr.Code(label="Raw Markdown", language="markdown")
         
@@ -329,8 +456,8 @@ with gr.Blocks(css=config.CSS) as demo:
                 generate_flashcards_btn = gr.Button("Generate Flashcards", scale=1)
             with gr.Tabs():
                 with gr.TabItem("Rendered Output"):
+                    flashcard_loading = gr.Markdown("", elem_classes="loading-text")
                     flashcard_output = gr.Markdown(label="Generated Flashcards")
-                    flashcard_loading = gr.Markdown(visible=True)
                 with gr.TabItem("Raw Text"):
                     raw_flashcard_output = gr.Code(label="Raw Markdown", language="markdown")
         
@@ -358,8 +485,8 @@ with gr.Blocks(css=config.CSS) as demo:
                 generate_problems_btn = gr.Button("Generate Practice Problems", scale=1)
             with gr.Tabs():
                 with gr.TabItem("Rendered Output"):
+                    problem_loading = gr.Markdown("", elem_classes="loading-text")
                     problem_output = gr.Markdown(label="Generated Problems")
-                    problem_loading = gr.Markdown(visible=True)
                 with gr.TabItem("Raw Text"):
                     raw_problem_output = gr.Code(label="Raw Markdown", language="markdown")
     
@@ -387,269 +514,101 @@ with gr.Blocks(css=config.CSS) as demo:
                 generate_summary_btn = gr.Button("Generate Summary", scale=1)
             with gr.Tabs():
                 with gr.TabItem("Rendered Output"):
+                    summary_loading = gr.Markdown("", elem_classes="loading-text")
                     summary_output = gr.Markdown(label="Generated Summary")
-                    summary_loading = gr.Markdown(visible=True)
                 with gr.TabItem("Raw Text"):
                     raw_summary_output = gr.Code(label="Raw Markdown", language="markdown")
     
-    with gr.Tab("Debug Logs"):
-        gr.Markdown("<h1 style='text-align: center; font-size: 32px; margin-bottom: 30px;'>Debug Logs</h1>")
-        gr.Markdown("<p style='text-align: center; color: #666;'>Monitor token usage and costs for debugging and optimization</p>")
+    with gr.Tab("Debug Analytics", elem_classes="debug-analytics"):
+        gr.Markdown("<h1>Debug Analytics</h1>")
         
-        with gr.Row():
-            refresh_logs = gr.Button("Refresh Logs", scale=0)
-        
-        with gr.Row():
+        # Token Usage Monitor Section
+        with gr.Column(elem_classes="token-monitor"):
+            with gr.Row():
+                with gr.Column(scale=3):
+                    gr.Markdown("<h2>Token Usage Monitor</h2>")
+                with gr.Column(scale=1):
+                    with gr.Row(elem_classes="action-buttons"):
+                        refresh_logs = gr.Button("🔄 Refresh Data", elem_classes="action-button")
+                        clear_filters = gr.Button("❌ Clear Filters", elem_classes="action-button")
+            
             token_usage_table = gr.Dataframe(
                 headers=["Time", "Function", "Prompt Tokens", "Completion Tokens", "Total Tokens", "Cost"],
-                label="Token Usage Logs",
-                interactive=False
+                row_count=10,
+                col_count=(6, "fixed"),
+                interactive=False,
+                wrap=True,
+                elem_classes="usage-table"
             )
-        
-        with gr.Row():
-            total_stats = gr.Markdown("No usage data available")
-        
-        with gr.Accordion("Advanced Query Options", open=False):
-            gr.Markdown("## Combined Filters")
-            with gr.Row():
-                with gr.Column(scale=1):
-                    gr.Markdown("### Date Range")
-                    start_date = gr.Textbox(
-                        label="Start Date (YYYY-MM-DD)",
-                        value=(datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
-                    )
-                    end_date = gr.Textbox(
-                        label="End Date (YYYY-MM-DD)",
-                        value=datetime.now().strftime("%Y-%m-%d")
-                    )
-                with gr.Column(scale=1):
-                    gr.Markdown("### Function")
-                    function_dropdown = gr.Dropdown(
-                        choices=get_unique_functions(),
-                        label="Select Function",
-                        value=None
-                    )
-                with gr.Column(scale=1):
-                    gr.Markdown("### Token Range")
-                    min_tokens = gr.Number(
-                        label="Minimum Tokens",
-                        value=0,
-                        precision=0
-                    )
-                    max_tokens = gr.Number(
-                        label="Maximum Tokens",
-                        value=10000,
-                        precision=0
-                    )
-                with gr.Column(scale=1):
-                    gr.Markdown("### Cost Range")
-                    min_cost = gr.Number(
-                        label="Minimum Cost ($)",
-                        value=0.0,
-                        precision=4
-                    )
-                    max_cost = gr.Number(
-                        label="Maximum Cost ($)",
-                        value=1.0,
-                        precision=4
-                    )
-            gr.Markdown("---")
-            gr.Markdown("## Limit Results")
-            with gr.Row():
-                limit = gr.Slider(
-                    minimum=10,
-                    maximum=1000,
-                    value=100,
-                    step=10,
-                    label="Limit Results"
-                )
-                apply_filters = gr.Button("Apply Filters")
-            gr.Markdown("---")
-            gr.Markdown("## Individual Filters")
-            with gr.Row():
-                date_limit = gr.Slider(
-                    minimum=10,
-                    maximum=1000,
-                    value=100,
-                    step=10,
-                    label="Limit Results"
-                )
-                query_by_date = gr.Button("Query by Date Range")
-            with gr.Row():
-                function_limit = gr.Slider(
-                    minimum=10,
-                    maximum=1000,
-                    value=100,
-                    step=10,
-                    label="Limit Results"
-                )
-                query_by_function = gr.Button("Query by Function")
-            with gr.Row():
-                token_limit = gr.Slider(
-                    minimum=10,
-                    maximum=1000,
-                    value=100,
-                    step=10,
-                    label="Limit Results"
-                )
-                query_by_tokens = gr.Button("Query by Token Range")
-            with gr.Row():
-                cost_limit = gr.Slider(
-                    minimum=10,
-                    maximum=1000,
-                    value=100,
-                    step=10,
-                    label="Limit Results"
-                )
-                query_by_cost = gr.Button("Query by Cost Range")
             
-            gr.Markdown("### Usage Statistics by Function")
-            with gr.Row():
-                usage_by_function = gr.Markdown("No usage data available by function")
-                refresh_function_usage = gr.Button("Refresh Function Usage")
-        
-        # Connect the buttons to their respective functions
-        def handle_generate_error(e):
-            """Handle errors in generate cheatsheet function."""
-            error_message = f"Error: {str(e)}"
-            return error_message, error_message, ""
+            with gr.Row(elem_classes="usage-overview"):
+                with gr.Column(scale=3):
+                    gr.Markdown("<h3>Usage Overview</h3>")
+                    usage_by_function = gr.Markdown("No usage data available by function")
+                with gr.Column(scale=1):
+                    with gr.Row(elem_classes="action-buttons"):
+                        refresh_function_usage = gr.Button("Update Function Stats", elem_classes="action-button")
 
-        def handle_feature_error(e):
-            """Handle errors in feature generation functions."""
-            error_message = f"Error: {str(e)}"
-            return error_message, error_message
-
-        # Generate cheatsheet
-        generate_btn.click(
-            fn=lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating cheatsheet...</p></div>", None, None),
-            outputs=[loading_output, output, raw_output]
-        ).then(
-            generate_cheatsheet_and_summarize,
-            inputs=[
-                prompt, theme, subject, template_name, style,
-                exemplified, complexity, audience, enforce_formatting
-            ],
-            outputs=[output, raw_output, summarized_content]
-        ).then(
-            update_logs,
-            outputs=[token_usage_table, total_stats]
-        ).then(
-            lambda: ("", "", "", "", ""),  # Clear loading indicators
-            outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
-        )
-
-        # Quiz generation with check
-        generate_quiz_btn.click(
-            lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating quiz...</p></div>", None),
-            outputs=[quiz_loading, quiz_output]
-        ).then(
-            quiz_with_check,
-            inputs=[summarized_content, quiz_type, difficulty, quiz_count],
-            outputs=[quiz_output, raw_quiz_output]
-        ).then(
-            update_logs,
-            outputs=[token_usage_table, total_stats]
-        ).then(
-            lambda: ("", "", "", "", ""),  # Clear loading indicators
-            outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
-        )
-
-        # Flashcards generation with check
-        generate_flashcards_btn.click(
-            lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating flashcards...</p></div>", None),
-            outputs=[flashcard_loading, flashcard_output]
-        ).then(
-            flashcards_with_check,
-            inputs=[summarized_content, flashcard_count],
-            outputs=[flashcard_output, raw_flashcard_output]
-        ).then(
-            update_logs,
-            outputs=[token_usage_table, total_stats]
-        ).then(
-            lambda: ("", "", "", "", ""),  # Clear loading indicators
-            outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
-        )
-
-        # Practice problems generation with check
-        generate_problems_btn.click(
-            lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating practice problems...</p></div>", None),
-            outputs=[problem_loading, problem_output]
-        ).then(
-            problems_with_check,
-            inputs=[summarized_content, problem_type, problem_count],
-            outputs=[problem_output, raw_problem_output]
-        ).then(
-            update_logs,
-            outputs=[token_usage_table, total_stats]
-        ).then(
-            lambda: ("", "", "", "", ""),  # Clear loading indicators
-            outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
-        )
-
-        # Summary generation with check
-        generate_summary_btn.click(
-            lambda: ("<div style='text-align: center; padding: 20px; background-color: var(--background-fill-secondary); border-radius: 8px;'><p style='font-size: 16px;'>Generating summary...</p></div>", None),
-            outputs=[summary_loading, summary_output]
-        ).then(
-            summary_with_check,
-            inputs=[summarized_content, summary_level, summary_focus],
-            outputs=[summary_output, raw_summary_output]
-        ).then(
-            update_logs,
-            outputs=[token_usage_table, total_stats]
-        ).then(
-            lambda: ("", "", "", "", ""),  # Clear loading indicators
-            outputs=[loading_output, quiz_loading, flashcard_loading, problem_loading, summary_loading]
-        )
-
-        # Connect refresh button
-        refresh_logs.click(
-            update_logs,
-            outputs=[token_usage_table, total_stats]
-        )
-        
-        # Connect combined filters
-        apply_filters.click(
-            apply_combined_filters,
-            inputs=[start_date, end_date, function_dropdown, min_tokens, max_tokens, min_cost, max_cost, limit],
-            outputs=[token_usage_table, total_stats]
-        )
-        
-        # Connect individual filters
-        query_by_date.click(
-            update_logs_by_date_range,
-            inputs=[start_date, end_date, date_limit],
-            outputs=[token_usage_table, total_stats]
-        )
-        
-        query_by_function.click(
-            update_logs_by_function,
-            inputs=[function_dropdown, function_limit],
-            outputs=[token_usage_table, total_stats]
-        )
-        
-        query_by_tokens.click(
-            update_logs_by_token_range,
-            inputs=[min_tokens, max_tokens, token_limit],
-            outputs=[token_usage_table, total_stats]
-        )
-        
-        query_by_cost.click(
-            update_logs_by_cost_range,
-            inputs=[min_cost, max_cost, cost_limit],
-            outputs=[token_usage_table, total_stats]
-        )
-        
-        refresh_function_usage.click(
-            update_usage_by_function,
-            outputs=usage_by_function
-        )
-        
-        # Update function dropdown choices when logs are refreshed
-        refresh_logs.click(
-            lambda: gr.Dropdown(choices=get_unique_functions()),
-            outputs=function_dropdown
-        )
+        # Query Builder Section
+        with gr.Column(elem_classes="query-builder"):
+            gr.Markdown("<h2>Query Builder</h2>")
+            with gr.Tabs() as query_tabs:
+                with gr.TabItem("Smart Filter"):
+                    with gr.Row():
+                        with gr.Column():
+                            gr.Markdown("📅 Date Range")
+                            start_date = gr.Textbox(
+                                label="Start Date",
+                                placeholder="YYYY-MM-DD",
+                                value="2025-03-29"
+                            )
+                            end_date = gr.Textbox(
+                                label="End Date",
+                                placeholder="YYYY-MM-DD",
+                                value="2025-04-05"
+                            )
+                        
+                        with gr.Column():
+                            gr.Markdown("🔍 Function Filter")
+                            function_dropdown = gr.Dropdown(
+                                label="Select Function",
+                                choices=get_unique_functions(),
+                                multiselect=False
+                            )
+                        
+                        with gr.Column():
+                            gr.Markdown("🎯 Token Range")
+                            min_tokens = gr.Number(
+                                label="Min Tokens",
+                                value=0
+                            )
+                            max_tokens = gr.Number(
+                                label="Max Tokens",
+                                value=10000
+                            )
+                        
+                        with gr.Column():
+                            gr.Markdown("💰 Cost Range")
+                            min_cost = gr.Number(
+                                label="Min Cost ($)",
+                                value=0
+                            )
+                            max_cost = gr.Number(
+                                label="Max Cost ($)",
+                                value=1
+                            )
+                    
+                    with gr.Row():
+                        with gr.Column(scale=3):
+                            result_limit = gr.Slider(
+                                minimum=10,
+                                maximum=1000,
+                                value=100,
+                                step=10,
+                                label="Result Limit"
+                            )
+                        with gr.Column(scale=1):
+                            apply_smart_filter = gr.Button("🔍 Apply Smart Filter", variant="primary", elem_classes="filter-button")
 
     with gr.Tab("About"):
         gr.Markdown("""
@@ -695,6 +654,266 @@ with gr.Blocks(css=config.CSS) as demo:
         - [SQLite Documentation](https://www.sqlite.org/docs.html) 🗄️
         
         """)
+
+    # Event handlers for the buttons
+    def show_loading(loading_component, message):
+        return gr.update(value=message, visible=True)
+
+    def hide_loading(loading_component):
+        return gr.update(value="", visible=False)
+
+    generate_btn.click(
+        fn=lambda: show_loading(cheatsheet_loading, "🔄 Generating cheatsheet..."),
+        inputs=[],
+        outputs=[cheatsheet_loading]
+    ).then(
+        generate_cheatsheet_and_summarize,
+        inputs=[
+            prompt, theme, subject, template_name, style,
+            exemplified, complexity, audience, enforce_formatting
+        ],
+        outputs=[output, raw_output, summarized_content]
+    ).then(
+        fn=lambda: hide_loading(cheatsheet_loading),
+        inputs=[],
+        outputs=[cheatsheet_loading]
+    )
+
+    # Quiz generation event handler
+    generate_quiz_btn.click(
+        fn=lambda: show_loading(quiz_loading, "🔄 Generating quiz..."),
+        inputs=[],
+        outputs=[quiz_loading]
+    ).then(
+        quiz_with_check,
+        inputs=[summarized_content, quiz_type, difficulty, quiz_count],
+        outputs=[quiz_output, raw_quiz_output]
+    ).then(
+        fn=lambda: hide_loading(quiz_loading),
+        inputs=[],
+        outputs=[quiz_loading]
+    )
+
+    # Flashcard generation event handler
+    generate_flashcards_btn.click(
+        fn=lambda: show_loading(flashcard_loading, "🔄 Generating flashcards..."),
+        inputs=[],
+        outputs=[flashcard_loading]
+    ).then(
+        flashcards_with_check,
+        inputs=[summarized_content, flashcard_count],
+        outputs=[flashcard_output, raw_flashcard_output]
+    ).then(
+        fn=lambda: hide_loading(flashcard_loading),
+        inputs=[],
+        outputs=[flashcard_loading]
+    )
+
+    # Practice problems generation event handler
+    generate_problems_btn.click(
+        fn=lambda: show_loading(problem_loading, "🔄 Generating practice problems..."),
+        inputs=[],
+        outputs=[problem_loading]
+    ).then(
+        problems_with_check,
+        inputs=[summarized_content, problem_type, problem_count],
+        outputs=[problem_output, raw_problem_output]
+    ).then(
+        fn=lambda: hide_loading(problem_loading),
+        inputs=[],
+        outputs=[problem_loading]
+    )
+
+    # Summary generation event handler
+    generate_summary_btn.click(
+        fn=lambda: show_loading(summary_loading, "🔄 Generating summary..."),
+        inputs=[],
+        outputs=[summary_loading]
+    ).then(
+        summary_with_check,
+        inputs=[summarized_content, summary_level, summary_focus],
+        outputs=[summary_output, raw_summary_output]
+    ).then(
+        fn=lambda: hide_loading(summary_loading),
+        inputs=[],
+        outputs=[summary_loading]
+    )
+
+    refresh_logs.click(
+        update_logs,
+        outputs=[token_usage_table, usage_by_function]
+    )
+
+    clear_filters.click(
+        lambda: ([], "No usage data available"),
+        outputs=[token_usage_table, usage_by_function]
+    )
+
+    apply_smart_filter.click(
+        apply_combined_filters,
+        inputs=[
+            start_date, end_date,
+            function_dropdown,
+            min_tokens, max_tokens,
+            min_cost, max_cost,
+            result_limit
+        ],
+        outputs=[token_usage_table, usage_by_function]
+    )
+
+    refresh_function_usage.click(
+        update_usage_by_function,
+        outputs=usage_by_function
+    )
+
+    # Update function dropdown choices when logs are refreshed
+    refresh_logs.click(
+        lambda: gr.Dropdown(choices=get_unique_functions()),
+        outputs=function_dropdown
+    )
+
+    # Add CSS for better styling
+    gr.Markdown("""
+    <style>
+    .gradio-container {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    
+    h1 {
+        font-size: 2.5em;
+        font-weight: 600;
+        margin-bottom: 1em;
+    }
+    
+    h2 {
+        font-size: 1.8em;
+        font-weight: 500;
+        margin: 0;
+        padding: 0;
+    }
+
+    h3 {
+        font-size: 1.4em;
+        font-weight: 500;
+        margin: 0;
+        padding: 0;
+    }
+    
+    /* Debug Analytics specific styles */
+    .debug-analytics {
+        padding: 20px;
+    }
+
+    .debug-analytics .token-monitor {
+        margin-bottom: 32px;
+    }
+
+    .debug-analytics .action-buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        margin-top: 8px;
+    }
+
+    .debug-analytics .action-button {
+        min-width: 120px !important;
+        height: 36px !important;
+        border-radius: 6px !important;
+        background-color: #f3f4f6 !important;
+        border: 1px solid #e5e7eb !important;
+        color: #374151 !important;
+        font-weight: 500 !important;
+        transition: all 0.2s ease-in-out;
+    }
+
+    .debug-analytics .action-button:hover {
+        background-color: #e5e7eb !important;
+        border-color: #d1d5db !important;
+    }
+
+    .debug-analytics .usage-table {
+        margin: 16px 0;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .debug-analytics .usage-overview {
+        margin-top: 24px;
+        padding: 16px;
+        background-color: #f9fafb;
+        border-radius: 8px;
+    }
+
+    .debug-analytics .query-builder {
+        margin-top: 32px;
+    }
+
+    .debug-analytics .filter-button {
+        width: 100% !important;
+        height: 40px !important;
+        margin-top: 24px !important;
+    }
+
+    /* General component styles */
+    .tabs {
+        margin-top: 1em;
+    }
+    
+    button {
+        border-radius: 6px !important;
+        font-weight: 500 !important;
+        height: 40px !important;
+        min-width: 120px !important;
+    }
+    
+    button[variant="primary"] {
+        background-color: #2563eb !important;
+        color: white !important;
+    }
+    
+    .dataframe {
+        border-radius: 8px;
+        overflow: hidden;
+        margin: 1em 0;
+    }
+    
+    .dataframe th {
+        background-color: #f3f4f6;
+        padding: 12px;
+        text-align: left;
+        font-weight: 500;
+    }
+    
+    .dataframe td {
+        padding: 12px;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .markdown-body {
+        padding: 1em;
+        background-color: #f9fafb;
+        border-radius: 8px;
+        margin: 1em 0;
+    }
+    
+    /* Loading indicator styles */
+    .loading-text {
+        padding: 12px;
+        margin-bottom: 12px;
+        background-color: #eef2ff;
+        border-radius: 6px;
+        color: #4f46e5;
+        font-weight: 500;
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.6; }
+        100% { opacity: 1; }
+    }
+    </style>
+    """)
 
 if __name__ == "__main__":
     demo.launch()

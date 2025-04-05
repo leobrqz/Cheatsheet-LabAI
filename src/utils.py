@@ -35,10 +35,13 @@ def format_date_for_display(iso_date: str) -> str:
         
     Returns:
         Formatted date string (YYYY-MM-DD)
+        
+    Raises:
+        ValueError: If the date string is invalid
     """
     try:
         date_obj = datetime.fromisoformat(iso_date)
         return date_obj.strftime("%Y-%m-%d")
     except ValueError as e:
         logger.error(f"Invalid ISO date format: {iso_date}")
-        return iso_date  # Return original if parsing fails 
+        raise ValueError(f"Invalid ISO date format: {iso_date}. Error: {str(e)}") 

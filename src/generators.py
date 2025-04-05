@@ -23,13 +23,22 @@ class RateLimiter:
         self.calls_per_minute = calls_per_minute
         self.calls = []
         self._lock = threading.Lock()  # Add thread lock
+        self._cleanup_interval = 60  # Cleanup interval in seconds
+        self._last_cleanup = time.time()
+    
+    def _cleanup_old_calls(self):
+        """Clean up calls older than 1 minute."""
+        now = time.time()
+        if now - self._last_cleanup >= self._cleanup_interval:
+            with self._lock:
+                self.calls = [call for call in self.calls if now - call < 60]
+                self._last_cleanup = now
     
     def wait_if_needed(self):
         """Wait if rate limit would be exceeded."""
         with self._lock:  # Use lock for thread safety
             now = time.time()
-            # Remove calls older than 1 minute
-            self.calls = [call for call in self.calls if now - call < 60]
+            self._cleanup_old_calls()
             
             if len(self.calls) >= self.calls_per_minute:
                 # Wait until oldest call is 1 minute old
@@ -47,7 +56,13 @@ class RateLimiter:
     
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Support for context manager protocol."""
-        pass
+        # Clean up any remaining calls
+        self._cleanup_old_calls()
+        # Log any errors that occurred
+        if exc_type is not None:
+            logger.error(f"Error in rate limiter: {exc_val}")
+            return False  # Re-raise the exception
+        return True  # Exception was handled
 
 # Create rate limiter instance
 rate_limiter = RateLimiter()

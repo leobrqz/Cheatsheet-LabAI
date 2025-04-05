@@ -1,67 +1,101 @@
-# Cheatsheet Generator
+# Cheatsheet Generator 🚀
 
-An AI-powered tool that generates customized cheatsheets, quizzes, flashcards, and practice problems based on user inputs.
+[![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/downloads/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4-green)](https://openai.com)
+[![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector%20DB-orange)](https://www.trychroma.com/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## Recent Updates
+An AI-powered tool that generates customized educational content using OpenAI's GPT models. Create comprehensive cheatsheets, quizzes, flashcards, and practice problems tailored to your learning needs.
 
-- **Token Usage Tracking**: Added persistent storage of token usage in SQLite database with historical data preservation
-- **Debug Logs**: Implemented detailed token usage monitoring and cost analysis with real-time statistics
-- **Database Integration**: Added SQLite support for storing generation history and outputs with automatic directory creation
-- **Docker Support**: Added containerization for easy deployment with optimized image size and environment configuration
-- **Enhanced Templates**: Added customizable templates for different content types with markdown formatting support
+## ✨ Features
 
-## Features
+### 📚 Content Generation
+- **Smart Cheatsheets**
+  - Markdown formatting with syntax highlighting
+  - Customizable sections and depth
+  - Code examples with explanations
+  - Visual diagrams and tables
 
-- **Content Generation**
-  - Customizable cheatsheets with markdown formatting and syntax highlighting
-  - Multiple-choice quizzes with explanations and difficulty levels
-  - Interactive flashcards for study with spaced repetition support
-  - Practice problems with solutions and step-by-step explanations
-  - Smart content summarization with customizable focus areas
+- **Interactive Quizzes**
+  - Multiple-choice questions with detailed explanations
+  - Adjustable difficulty levels
+  - Topic-specific question generation
+  - Performance tracking
 
-- **Debug & Analytics**
-  - Real-time token usage tracking with persistent storage
-  - Cost analysis and statistics with historical trends
-  - Persistent storage of generation history across sessions
-  - Detailed usage logs with function-specific metrics
-  - SQLite database for reliable data persistence
+- **Study Flashcards**
+  - Spaced repetition system
+  - Customizable card formats
+  - Progress tracking
+  - Export to various formats
 
-## Setup Instructions
+- **Practice Problems**
+  - Step-by-step solutions
+  - Difficulty progression
+  - Topic-specific problems
+  - Performance analytics
 
-### 1. API Key Setup
+### 📊 Analytics & Debug
+- **Token Usage Tracking**
+  - Real-time monitoring
+  - Cost analysis and optimization
+  - Historical usage trends
+  - Function-specific metrics
 
-Create a `.env` file in the project root with your OpenAI API key:
+- **Vector Database Integration**
+  - ChromaDB for efficient storage
+  - Advanced querying capabilities
+  - Persistent data across sessions
+  - Thread-safe operations
+
+## 🔄 Recent Updates
+
+### Database Migration & Performance Improvements
+- 🚀 Migrated from SQLite to ChromaDB for improved vector-based querying
+- 🔒 Added thread-safe operations and automatic retry mechanisms
+- 🔍 Implemented advanced filtering capabilities for analytics
+- ⚡ Enhanced error handling and logging system
+
+## 🛠️ Setup Instructions
+
+### 1. Clone Repository
+```bash
+git clone https://github.com/yourusername/cheatsheet-generator.git
+cd cheatsheet-generator
 ```
+
+### 2. API Key Setup
+Create a `.env` file in the project root:
+```env
 OPENAI_API_KEY=your_api_key_here
 ```
 
-### Setup Method
+### 3. Installation
 
 #### Local Setup
-
-1. Install Requirements:
 ```bash
+# Install dependencies
 pip install -r requirements.txt
-```
 
-2. Start the Application:
-```bash
-# From the project root directory
-gradio -m src.main
+# Start the application
+cd src
+gradio main.py
 ```
-
-The application will be available at `http://localhost:7860`
 
 #### Docker Setup
-
-1. Build the Docker Image:
 ```bash
+# Build image
 docker build -t cheatsheet-generator .
-```
 
-2. Run the Container:
-```bash
+# Run container
 docker run -p 7860:7860 --env-file .env cheatsheet-generator
 ```
 
 The application will be available at `http://localhost:7860`
+
+
+
+## 🤝 Contributing
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📄 License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

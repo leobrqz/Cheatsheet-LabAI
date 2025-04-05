@@ -5,3 +5,4 @@ src/db/
 **/__pycache__/
 src/logs/
 logs/
+db/chroma/

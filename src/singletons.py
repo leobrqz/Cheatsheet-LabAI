@@ -1,6 +1,7 @@
 from typing import Optional
 from langchain_openai import ChatOpenAI
 from config import config
+from db.chroma_db import ChromaDatabase
 
 class OpenAIClient:
     _instance: Optional[ChatOpenAI] = None
@@ -19,12 +20,10 @@ class OpenAIClient:
         return cls._instance
 
 class DatabaseInstance:
-    _instance = None
+    _instance: Optional[ChromaDatabase] = None
     
     @classmethod
-    def get_instance(cls):
+    def get_instance(cls) -> ChromaDatabase:
         if cls._instance is None:
-            # Lazy import to avoid circular dependency
-            from database import Database
-            cls._instance = Database()
+            cls._instance = ChromaDatabase()
         return cls._instance 

@@ -1,4 +1,4 @@
-# Cheatsheet Generator 🚀
+# Cheatsheet AI Lab 🚀
 
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/downloads/)
 [![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4-green)](https://openai.com)
@@ -48,8 +48,8 @@ An AI-powered educational content generator leveraging OpenAI's GPT models and C
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/yourusername/cheatsheet-generator.git
-cd cheatsheet-generator
+git clone https://github.com/leobrqz/Cheatsheet-LabAI
+cd Cheatsheet-LabAI
 ```
 
 ### 2. API Key Setup
@@ -73,10 +73,10 @@ gradio main.py
 #### Docker Setup
 ```bash
 # Build image
-docker build -t cheatsheet-generator .
+docker build -t Cheatsheet-LabAI .
 
 # Run container
-docker run -p 7860:7860 --env-file .env cheatsheet-generator
+docker run -p 7860:7860 --env-file .env Cheatsheet-LabAI
 ```
 
 The application will be available at `http://localhost:7860`

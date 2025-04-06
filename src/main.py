@@ -822,7 +822,7 @@ with gr.Blocks(
     analytics_enabled=False,
     mode="blocks"
 ) as demo:
-    gr.Markdown("# AI Cheatsheet Generator")
+    gr.Markdown("# Cheatsheet Lab")
     
     # Hidden state to store summarized content
     summarized_content = gr.State("")
@@ -1213,8 +1213,8 @@ with gr.Blocks(
             # Title Section
             gr.Markdown(
                 """
-                # AI Cheatsheet Generator
-                ### Your AI-powered learning companion
+                # Cheatsheet Lab
+                ###  AI-powered cheatsheet creator
                 """,
                 elem_classes=["about-title", "center-text"]
             )

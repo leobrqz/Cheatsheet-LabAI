@@ -29,8 +29,8 @@ def validate_date(date_str: str, allow_time: bool = True) -> Tuple[bool, Optiona
     Returns:
         Tuple of (is_valid, error_message)
     """
-    if not date_str or not isinstance(date_str, str):
-        return False, "Date string must be a non-empty string"
+    if not isinstance(date_str, str):
+        return False, "Date string must be a string"
         
     date_str = date_str.strip()
     if not date_str:

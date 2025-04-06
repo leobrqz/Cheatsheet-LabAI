@@ -28,13 +28,11 @@ from src.core.generators import (
     calculate_total_usage_by_date
 )
 from src.utils.utils import validate_date_format
-from src.core.formatters import LogFormatter
 from src.utils.singletons import OpenAIClient, DatabaseInstance
 from datetime import datetime, timedelta
 from src.utils.logger import get_logger
 from typing import Union, List, Any
 from src.database.query_builder import LogQueryBuilder
-import json
 
 # Get logger instance
 logger = get_logger(__name__)
@@ -45,6 +43,16 @@ load_dotenv()
 # Initialize OpenAI client and database
 llm = OpenAIClient.get_instance()
 db = DatabaseInstance.get_instance()
+
+# Constants
+EMPTY_STATS_TABLE = """
+| Metric | Value |
+|--------|-------|
+| Total Tokens | 0 |
+| Total Cost | $0.00 |
+| Avg Tokens/Call | 0 |
+| Avg Cost/Call | $0.00 |
+"""
 
 def migrate_default_templates():
     """Migrate default templates to database if they don't exist."""
@@ -167,10 +175,7 @@ def update_template_list(template_search: str, template_filter: str) -> List[Lis
                 if t[1].lower() == template_filter.lower()
             ]
         
-        # Update the template selector dropdown
-        template_names = [t[0] for t in formatted_templates]
-        
-        return formatted_templates, gr.update(choices=template_names)
+        return formatted_templates, gr.update(choices=[t[0] for t in formatted_templates])
         
     except Exception as e:
         logger.error(f"Error updating template list: {e}")
@@ -333,14 +338,7 @@ def update_logs():
     try:
         logs = get_token_logs()
         if not logs:
-            return [], """
-            | Metric | Value |
-            |--------|-------|
-            | Total Tokens | 0 |
-            | Total Cost | $0.00 |
-            | Avg Tokens/Call | 0 |
-            | Avg Cost/Call | $0.00 |
-            """, "No usage data available by function"
+            return [], EMPTY_STATS_TABLE, "No usage data available by function"
         
         # Format logs for display
         formatted_logs = []
@@ -392,37 +390,16 @@ def update_logs():
         
     except Exception as e:
         logger.error(f"Error updating logs: {e}")
-        return [], """
-        | Metric | Value |
-        |--------|-------|
-        | Total Tokens | 0 |
-        | Total Cost | $0.00 |
-        | Avg Tokens/Call | 0 |
-        | Avg Cost/Call | $0.00 |
-        """, f"Error updating logs: {str(e)}"
+        return [], EMPTY_STATS_TABLE, f"Error updating logs: {str(e)}"
 
 def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_tokens, min_cost, max_cost, limit):
     """Apply combined filters to token usage logs."""
     try:
         # Validate date format
         if start_date and not validate_date_format(start_date):
-            return [], """
-            | Metric | Value |
-            |--------|-------|
-            | Total Tokens | 0 |
-            | Total Cost | $0.00 |
-            | Avg Tokens/Call | 0 |
-            | Avg Cost/Call | $0.00 |
-            """
+            return [], EMPTY_STATS_TABLE
         if end_date and not validate_date_format(end_date):
-            return [], """
-            | Metric | Value |
-            |--------|-------|
-            | Total Tokens | 0 |
-            | Total Cost | $0.00 |
-            | Avg Tokens/Call | 0 |
-            | Avg Cost/Call | $0.00 |
-            """
+            return [], EMPTY_STATS_TABLE
         
         # Build query
         query_builder = LogQueryBuilder()
@@ -447,14 +424,7 @@ def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_
         logs = db.query_logs(query_dict)
         
         if not logs:
-            return [], """
-            | Metric | Value |
-            |--------|-------|
-            | Total Tokens | 0 |
-            | Total Cost | $0.00 |
-            | Avg Tokens/Call | 0 |
-            | Avg Cost/Call | $0.00 |
-            """
+            return [], EMPTY_STATS_TABLE
         
         # Format logs for display
         formatted_logs = []
@@ -491,14 +461,7 @@ def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_
         
     except Exception as e:
         logger.error(f"Error applying filters: {e}")
-        return [], """
-        | Metric | Value |
-        |--------|-------|
-        | Total Tokens | 0 |
-        | Total Cost | $0.00 |
-        | Avg Tokens/Call | 0 |
-        | Avg Cost/Call | $0.00 |
-        """
+        return [], EMPTY_STATS_TABLE
 
 def update_usage_by_function():
     """Update the usage by function statistics."""
@@ -649,7 +612,7 @@ with gr.Blocks(
                     headers=["Name", "Type", "Last Updated"],
                     datatype=["str", "str", "str"],
                     label="Templates",
-                    interactive=True
+                    interactive=False
                 )
                 
                 # Template Actions
@@ -1430,14 +1393,7 @@ with gr.Blocks(
     clear_filters.click(
         lambda: (
             [],  # Empty table
-            """
-            | Metric | Value |
-            |--------|-------|
-            | Total Tokens | 0 |
-            | Total Cost | $0.00 |
-            | Avg Tokens/Call | 0 |
-            | Avg Cost/Call | $0.00 |
-            """  # Reset stats
+            EMPTY_STATS_TABLE,  # Reset stats
         ),
         outputs=[token_usage_table, total_stats]
     ).then(

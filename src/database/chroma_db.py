@@ -741,4 +741,38 @@ class ChromaDatabase:
             return collection
         except Exception as e:
             logger.critical(f"Failed to ensure token_logs collection: {e}")
-            raise 
+            raise
+
+    @handle_chroma_errors
+    def reset_templates_collection(self):
+        """
+        Reset the templates collection without deleting the database.
+        This is useful for clearing all templates while maintaining the database structure.
+        """
+        try:
+            with self._lock:
+                # Delete the existing collection
+                self.client.delete_collection("templates")
+                
+                # Recreate the collection
+                self.client.create_collection(
+                    name="templates",
+                    metadata={"description": "Template storage for cheatsheets"}
+                )
+                
+                # Clear collection cache for templates
+                with self._collection_cache_lock:
+                    # Remove all template-related entries from cache
+                    keys_to_remove = [k for k in self._collection_cache.keys() if k.startswith("templates_")]
+                    for key in keys_to_remove:
+                        del self._collection_cache[key]
+                
+                # Persist changes
+                if hasattr(self.client, 'persist'):
+                    self.client.persist()
+                
+                logger.info("Templates collection reset completed successfully")
+                return True
+        except Exception as e:
+            logger.error(f"Error resetting templates collection: {e}")
+            return False 

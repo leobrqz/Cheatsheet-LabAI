@@ -21,9 +21,13 @@ def reset_token_logs():
         db = ChromaDatabase()
         logger.info("Chroma database initialized successfully")
         
-        # Reset the collection
+        # Reset the token logs collection
         db.reset_collection()
         logger.info("Token logs collection reset successfully")
+        
+        # Reset the templates collection
+        db.reset_templates_collection()
+        logger.info("Templates collection reset successfully")
         
         # Clear TokenUsageTracker cache
         token_tracker = TokenUsageTracker()
@@ -51,10 +55,10 @@ def reset_token_logs():
             db.client.persist()
         logger.info("Changes persisted successfully")
         
-        logger.info("Token logs reset completed successfully")
+        logger.info("Token logs and templates reset completed successfully")
         return True
     except Exception as e:
-        logger.error(f"Error resetting token logs: {e}")
+        logger.error(f"Error resetting token logs and templates: {e}")
         return False
 
 if __name__ == "__main__":

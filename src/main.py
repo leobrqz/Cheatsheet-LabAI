@@ -57,40 +57,329 @@ EMPTY_STATS_TABLE = """
 def migrate_default_templates():
     """Migrate default templates to database if they don't exist."""
     try:
-        # Define default templates
+        # Define comprehensive default templates
         default_templates = {
             "Study Guide": {
                 "type": "study",
-                "structure": {
-                    "sections": [
-                        {"title": "Key Concepts", "content": "List and explain the main concepts"},
-                        {"title": "Important Formulas", "content": "List and explain key formulas"},
-                        {"title": "Examples", "content": "Provide worked examples"},
-                        {"title": "Practice Problems", "content": "Include practice problems with solutions"}
-                    ]
-                }
+                "content": """# {subject} Study Guide
+
+## Overview
+{Comprehensive introduction to the topic, including its importance and relevance}
+
+## Key Concepts
+{Detailed explanation of fundamental concepts and theories, with clear definitions}
+
+## Core Principles
+{Main principles and foundational ideas that form the basis of the subject}
+
+## Important Definitions
+{Key terms and their precise definitions, organized alphabetically}
+
+## Examples & Applications
+{Real-world examples and practical applications, with step-by-step explanations}
+
+## Common Misconceptions
+{Address frequently misunderstood aspects and clarify common mistakes}
+
+## Practice Problems
+{Sample problems with detailed solutions and explanations}
+
+## Quick Reference
+{Concise summary of key points, formulas, and concepts for quick review}
+
+## Further Reading
+{Recommended resources and references for deeper understanding}"""
             },
-            "Coding Cheatsheet": {
-                "type": "coding",
-                "structure": {
-                    "sections": [
-                        {"title": "Syntax", "content": "Show basic syntax and examples"},
-                        {"title": "Common Functions", "content": "List frequently used functions"},
-                        {"title": "Best Practices", "content": "Include coding best practices"},
-                        {"title": "Tips & Tricks", "content": "Add useful tips and tricks"}
-                    ]
-                }
+            "API Documentation": {
+                "type": "technical",
+                "content": """# {subject} API Documentation
+
+## API Overview
+{High-level overview of the API's purpose and capabilities}
+
+## Authentication
+{Authentication methods, API keys, tokens, and security requirements}
+
+## Base URL
+{Base URL structure and environment-specific endpoints}
+
+## Endpoints
+{Detailed documentation of each endpoint with request/response formats}
+
+## Request Parameters
+{Parameters, data types, validation rules, and examples}
+
+## Response Format
+{Response structure, status codes, and error handling}
+
+## Rate Limiting
+{Rate limits, quotas, and throttling policies}
+
+## Webhooks
+{Webhook configuration, payload formats, and event types}
+
+## SDK Examples
+{Code examples using popular programming languages}
+
+## Troubleshooting
+{Common issues, error codes, and resolution steps}"""
             },
-            "Quick Reference Card": {
+            "Quick Reference": {
                 "type": "reference",
-                "structure": {
-                    "sections": [
-                        {"title": "Overview", "content": "Brief overview of the topic"},
-                        {"title": "Key Points", "content": "List of key points to remember"},
-                        {"title": "Common Issues", "content": "List common issues and solutions"},
-                        {"title": "Resources", "content": "Additional resources for learning"}
-                    ]
-                }
+                "content": """# {subject} Quick Reference
+
+## Syntax Guide
+{Essential syntax rules and commands with examples}
+
+## Common Operations
+{Frequently used operations and methods with usage patterns}
+
+## Data Structures
+{Key data structures and their implementations}
+
+## Algorithms
+{Common algorithms and their time/space complexity}
+
+## Tips & Tricks
+{Useful shortcuts, techniques, and best practices}
+
+## Gotchas
+{Common pitfalls to avoid and edge cases to consider}
+
+## Debugging Guide
+{Common debugging techniques and tools}
+
+## Resources
+{Links to documentation, tools, and learning resources}"""
+            },
+            "Concept Map": {
+                "type": "conceptual",
+                "content": """# {subject} Concept Map
+
+## Core Concept
+{Detailed explanation of the central idea or principle}
+
+## Related Concepts
+{Connected ideas and their relationships, with visual mapping}
+
+## Prerequisites
+{Foundation knowledge and skills required to understand the concept}
+
+## Applications
+{Practical applications and real-world use cases}
+
+## Advanced Topics
+{Further exploration paths and advanced concepts}
+
+## Visual Elements
+{Diagrams, flowcharts, and visual representations}
+
+## Cross-References
+{Links to related concepts and topics}
+
+## Learning Path
+{Recommended sequence for learning and mastering the concept}"""
+            },
+            "Language Learning": {
+                "type": "language",
+                "content": """# {subject} Language Guide
+
+## Grammar Rules
+{Essential grammar patterns and structures with examples}
+
+## Vocabulary
+{Key words and phrases organized by categories}
+
+## Common Expressions
+{Everyday useful expressions and idioms}
+
+## Cultural Notes
+{Cultural context, usage, and etiquette}
+
+## Practice Dialogues
+{Example conversations with translations}
+
+## Pronunciation Guide
+{Sound patterns, rules, and common pronunciation challenges}
+
+## Writing Guide
+{Writing styles, formats, and conventions}
+
+## Reading Comprehension
+{Strategies for understanding written text}
+
+## Listening Skills
+{Tips for improving listening comprehension}"""
+            },
+            "Code Review": {
+                "type": "coding",
+                "content": """# {subject} Code Review
+
+## Code Overview
+{High-level description of the code's purpose and functionality}
+
+## Architecture Review
+{Evaluation of code architecture and design patterns}
+
+## Code Quality
+{Assessment of code quality, readability, and maintainability}
+
+## Performance Analysis
+{Performance considerations and potential optimizations}
+
+## Security Review
+{Security vulnerabilities and best practices}
+
+## Test Coverage
+{Evaluation of test coverage and testing strategies}
+
+## Documentation Review
+{Assessment of code documentation and comments}
+
+## Best Practices
+{Alignment with coding standards and best practices}
+
+## Recommendations
+{Specific recommendations for improvement}
+
+## Action Items
+{Prioritized list of changes to implement}"""
+            },
+            "Algorithm Guide": {
+                "type": "algorithm",
+                "content": """# {subject} Algorithm Guide
+
+## Problem Statement
+{Clear definition of the problem and its constraints}
+
+## Algorithm Overview
+{High-level explanation of the algorithm approach}
+
+## Implementation
+{Detailed implementation with code examples}
+
+## Time Complexity
+{Analysis of time complexity with Big O notation}
+
+## Space Complexity
+{Analysis of space complexity and memory usage}
+
+## Edge Cases
+{Special cases and how to handle them}
+
+## Optimization
+{Techniques for optimizing the algorithm}
+
+## Applications
+{Real-world applications and use cases}
+
+## Related Algorithms
+{Similar algorithms and their differences}
+
+## Practice Problems
+{Sample problems to test understanding}"""
+            },
+            "Design Pattern": {
+                "type": "design",
+                "content": """# {subject} Design Pattern
+
+## Pattern Overview
+{Description of the design pattern and its purpose}
+
+## Problem Solved
+{Problems that this pattern addresses}
+
+## Solution Structure
+{Detailed explanation of the pattern structure}
+
+## Implementation
+{Code examples and implementation details}
+
+## Class Diagram
+{UML class diagram showing relationships}
+
+## Sequence Diagram
+{UML sequence diagram showing interactions}
+
+## Benefits
+{Advantages and benefits of using the pattern}
+
+## Drawbacks
+{Limitations and potential issues}
+
+## Real-world Examples
+{Examples of the pattern in real applications}
+
+## Related Patterns
+{Related patterns and their relationships}"""
+            },
+            "Project Setup": {
+                "type": "setup",
+                "content": """# {subject} Project Setup Guide
+
+## Prerequisites
+{Required software, tools, and dependencies}
+
+## Installation Steps
+{Step-by-step installation instructions}
+
+## Configuration
+{Configuration files and environment setup}
+
+## Project Structure
+{Overview of project organization and files}
+
+## Development Setup
+{Development environment configuration}
+
+## Testing Setup
+{Testing environment and tools setup}
+
+## Deployment Setup
+{Deployment environment configuration}
+
+## CI/CD Setup
+{Continuous Integration/Deployment setup}
+
+## Documentation Setup
+{Documentation tools and setup}
+
+## Security Setup
+{Security configurations and best practices}"""
+            },
+            "Troubleshooting Guide": {
+                "type": "troubleshooting",
+                "content": """# {subject} Troubleshooting Guide
+
+## Common Issues
+{List of frequently encountered problems}
+
+## Error Messages
+{Common error messages and their meanings}
+
+## Diagnostic Steps
+{Step-by-step diagnostic procedures}
+
+## Solutions
+{Detailed solutions for each problem}
+
+## Prevention
+{Tips for preventing common issues}
+
+## Logging
+{How to enable and interpret logs}
+
+## Debug Tools
+{Available debugging tools and their usage}
+
+## Performance Issues
+{Common performance problems and solutions}
+
+## Security Issues
+{Security-related problems and fixes}
+
+## Recovery Procedures
+{Steps for recovering from failures}"""
             }
         }
 
@@ -99,21 +388,27 @@ def migrate_default_templates():
         existing_names = {t['name'] for t in existing_templates}
 
         # Add missing default templates
+        templates_added = 0
         for name, template in default_templates.items():
             if name not in existing_names:
                 logger.info(f"Adding default template: {name}")
-                db.add_template(
+                success = db.add_template(
                     name=name,
-                    template_type=template['type'],
-                    structure=template['structure']
+                    type=template['type'],
+                    structure=template['content']
                 )
+                if success:
+                    templates_added += 1
 
-        logger.info("Default templates migration completed successfully")
+        logger.info(f"Default templates migration completed. Added {templates_added} new templates.")
         return True
 
     except Exception as e:
         logger.error(f"Error migrating default templates: {e}")
         return False
+
+# Call migration function when the application starts
+migrate_default_templates()
 
 def generate_cheatsheet_and_summarize(prompt, theme, subject, template_name, style, exemplified, complexity, audience, enforce_formatting):
     """Generates a cheatsheet and creates a summary for use in other features."""

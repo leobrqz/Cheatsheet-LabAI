@@ -1,11 +1,11 @@
 from langchain_openai import ChatOpenAI
 import re
-from config import config
+from ..config.config import config
 from langchain_community.callbacks.manager import get_openai_callback
 from datetime import datetime
-from singletons import OpenAIClient, DatabaseInstance
+from ..utils.singletons import OpenAIClient, DatabaseInstance
 from typing import List, Dict, Any, Optional, Tuple, Callable, Union
-from logger import get_logger
+from ..utils.logger import get_logger
 import time
 from functools import wraps
 import backoff

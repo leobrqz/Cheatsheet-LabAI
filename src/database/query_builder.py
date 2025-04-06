@@ -1,10 +1,10 @@
 from typing import List, Optional, Tuple, Any, Dict
 from datetime import datetime
 import re
-from logger import get_logger
+from ..utils.logger import get_logger
 import backoff
 from functools import wraps
-from utils import validate_date_format, validate_numeric_range, validate_positive_integer
+from ..utils.utils import validate_date_format, validate_numeric_range, validate_positive_integer
 
 # Get logger instance
 logger = get_logger(__name__)
@@ -131,7 +131,15 @@ class LogQueryBuilder:
         if not function_name or not isinstance(function_name, str):
             raise InvalidFunctionError("Function name must be a non-empty string")
             
-        self.conditions.append({"function_name": function_name})
+        # Clean and normalize the function name
+        cleaned_name = function_name.strip()
+        
+        # Add condition with exact match
+        self.conditions.append({
+            "function_name": {
+                "$eq": cleaned_name
+            }
+        })
         return self
     
     @handle_query_errors
@@ -215,13 +223,27 @@ class LogQueryBuilder:
             query['$limit'] = self.limit
         return query
     
-    def build(self) -> 'LogQueryBuilder':
-        """Build the query and return the builder instance.
-        
-        Returns:
-            Self for method chaining
-        """
-        return self
+    @handle_query_errors
+    def build(self) -> Dict[str, Any]:
+        """Build the final query dictionary."""
+        if not self.conditions:
+            return {
+                "where": {},
+                "limit": getattr(self, 'limit', 100)
+            }
+            
+        # If we have only one condition, return it directly
+        if len(self.conditions) == 1:
+            return {
+                "where": self.conditions[0],
+                "limit": getattr(self, 'limit', 100)
+            }
+            
+        # For multiple conditions, wrap them in $and
+        return {
+            "where": {"$and": self.conditions},
+            "limit": getattr(self, 'limit', 100)
+        }
     
     def __str__(self) -> str:
         """String representation of the query builder."""

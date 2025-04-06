@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from typing import Dict, Any, Optional
 import json
 from pathlib import Path
-from logger import get_logger
+from ..utils.logger import get_logger
 
 # Get logger instance
 logger = get_logger(__name__)
@@ -107,7 +107,7 @@ class ConfigManager:
         """Get all templates from the database."""
         try:
             # Get templates from database
-            from singletons import DatabaseInstance
+            from ..utils.singletons import DatabaseInstance
             db = DatabaseInstance.get_instance()
             templates = db.get_all_templates()
             

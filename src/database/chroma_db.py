@@ -3,12 +3,12 @@ from typing import List, Dict, Any, Optional
 import chromadb
 from chromadb.config import Settings
 from datetime import datetime
-from logger import get_logger
+from ..utils.logger import get_logger
 import backoff
 from functools import wraps
 import threading
-from query_builder import LogQueryBuilder
-from utils import validate_numeric_range, validate_positive_integer
+from .query_builder import LogQueryBuilder
+from ..utils.utils import validate_numeric_range, validate_positive_integer
 
 # Get logger instance
 logger = get_logger(__name__)
@@ -471,11 +471,11 @@ class ChromaDatabase:
             raise
 
     @handle_chroma_errors
-    def query_logs(self, query_builder: 'LogQueryBuilder', limit: int = 100) -> List[Dict[str, Any]]:
+    def query_logs(self, query_builder_or_dict, limit: int = 100) -> List[Dict[str, Any]]:
         """Execute a combined query using the query builder.
         
         Args:
-            query_builder: An instance of LogQueryBuilder containing the query conditions
+            query_builder_or_dict: An instance of LogQueryBuilder or a dictionary containing the query conditions
             limit: Maximum number of results to return
             
         Returns:
@@ -483,14 +483,21 @@ class ChromaDatabase:
         """
         collection = self._get_thread_safe_collection()
         
-        # If no filters are set, return all logs up to the limit
-        if not query_builder.has_filters():
-            logger.debug("No filters set, returning all logs")
-            return self.get_logs(limit)
-        
-        # Get the query dictionary
-        query = query_builder.get_query()
-        where_clause = query.get("$and", {})
+        # Handle both LogQueryBuilder object and dictionary
+        if hasattr(query_builder_or_dict, 'has_filters') and callable(getattr(query_builder_or_dict, 'has_filters')):
+            # If no filters are set, return all logs up to the limit
+            if not query_builder_or_dict.has_filters():
+                logger.debug("No filters set, returning all logs")
+                return self.get_logs(limit)
+            
+            # Get the query dictionary
+            query = query_builder_or_dict.build()
+            where_clause = query.get("where", {})
+            limit = query.get("limit", limit)
+        else:
+            # If it's already a dictionary, use it directly
+            where_clause = query_builder_or_dict.get("where", {})
+            limit = query_builder_or_dict.get("limit", limit)
         
         logger.debug(f"Executing query with where clause: {where_clause}")
         
@@ -499,8 +506,6 @@ class ChromaDatabase:
             where=where_clause,
             limit=limit
         )
-        
-        logger.debug(f"Query returned {len(results.get('ids', []))} results")
         
         return self._format_results(results)
 

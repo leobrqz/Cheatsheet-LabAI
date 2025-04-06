@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import List, Dict, Any, Union
-from logger import get_logger
+from ..utils.logger import get_logger
 from datetime import datetime
 
 # Get logger instance
@@ -29,14 +29,31 @@ class LogFormatter:
             List of formatted log entries for display
         """
         try:
-            return [[
-                log['timestamp'].strftime("%Y-%m-%d %H:%M:%S") if isinstance(log['timestamp'], datetime) else log['timestamp'],
-                log['function_name'],
-                log['prompt_tokens'],
-                log['completion_tokens'],
-                log['total_tokens'],
-                f"${log['cost']:.4f}"
-            ] for log in logs]
+            formatted_logs = []
+            for log in logs:
+                # Handle timestamp formatting
+                timestamp = log['timestamp']
+                if isinstance(timestamp, (int, float)):
+                    # Convert Unix timestamp to datetime
+                    formatted_time = datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
+                elif isinstance(timestamp, datetime):
+                    formatted_time = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    # If it's already a string, try to parse it
+                    try:
+                        formatted_time = datetime.fromisoformat(str(timestamp)).strftime("%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        formatted_time = str(timestamp)  # Fallback to string representation
+                
+                formatted_logs.append([
+                    formatted_time,
+                    log['function_name'],
+                    log['prompt_tokens'],
+                    log['completion_tokens'],
+                    log['total_tokens'],
+                    f"${log['cost']:.4f}"
+                ])
+            return formatted_logs
         except KeyError as e:
             logger.error(f"Missing required field in log entry: {e}")
             return []

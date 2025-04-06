@@ -1,7 +1,16 @@
 from dotenv import load_dotenv
 import gradio as gr
-from config import config
-from generators import (
+import os
+import sys
+
+# Add the parent directory to sys.path to allow imports to work
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
+from src.config.config import config
+from src.core.generators import (
     generate_cheatsheet,
     generate_quiz,
     generate_flashcards,
@@ -18,13 +27,13 @@ from generators import (
     calculate_total_usage_by_function,
     calculate_total_usage_by_date
 )
-from utils import validate_date_format
-from formatters import LogFormatter
-from singletons import OpenAIClient, DatabaseInstance
+from src.utils.utils import validate_date_format
+from src.core.formatters import LogFormatter
+from src.utils.singletons import OpenAIClient, DatabaseInstance
 from datetime import datetime, timedelta
-from logger import get_logger
+from src.utils.logger import get_logger
 from typing import Union, List, Any
-from query_builder import LogQueryBuilder
+from src.database.query_builder import LogQueryBuilder
 import json
 
 # Get logger instance
@@ -324,7 +333,7 @@ def update_logs():
     try:
         logs = get_token_logs()
         if not logs:
-            return [], "No usage data available"
+            return []  # Return empty list for empty data
         
         # Format logs for display
         formatted_logs = []
@@ -338,32 +347,20 @@ def update_logs():
                 f"${log['cost']:.4f}"
             ])
         
-        # Calculate total usage by function
-        usage_by_function = calculate_total_usage_by_function()
-        if not usage_by_function:
-            return formatted_logs, "No usage data available by function"
+        return formatted_logs  # Return only the formatted logs
         
-        # Format the usage statistics as a markdown table
-        table = "### Usage by Function\n\n"
-        table += "| Function | Total Tokens | Total Cost |\n"
-        table += "|----------|--------------|------------|\n"
-        
-        for func_name, stats in usage_by_function.items():
-            table += f"| {func_name} | {stats['total_tokens']:,} | ${stats['total_cost']:.4f} |\n"
-        
-        return formatted_logs, table
     except Exception as e:
         logger.error(f"Error updating logs: {e}")
-        return [], f"Error updating logs: {str(e)}"
+        return []  # Return empty list on error
 
 def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_tokens, min_cost, max_cost, limit):
     """Apply combined filters to token usage logs."""
     try:
         # Validate date format
         if start_date and not validate_date_format(start_date):
-            return [], "Invalid start date format. Use YYYY-MM-DD"
+            return []  # Return empty list for invalid date format
         if end_date and not validate_date_format(end_date):
-            return [], "Invalid end date format. Use YYYY-MM-DD"
+            return []  # Return empty list for invalid date format
         
         # Build query
         query_builder = LogQueryBuilder()
@@ -383,8 +380,9 @@ def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_
         if limit:
             query_builder.set_limit(limit)
         
-        # Execute query
-        logs = db.query_logs(query_builder.build())
+        # Execute query - pass the query dictionary directly
+        query_dict = query_builder.build()
+        logs = db.query_logs(query_dict)
         
         # Format logs for display
         formatted_logs = []
@@ -398,23 +396,11 @@ def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_
                 f"${log['cost']:.4f}"
             ])
         
-        # Calculate total usage by function for filtered logs
-        usage_by_function = calculate_total_usage_by_function(logs)
-        if not usage_by_function:
-            return formatted_logs, "No usage data available by function"
+        return formatted_logs  # Return only the formatted logs
         
-        # Format the usage statistics as a markdown table
-        table = "### Usage by Function\n\n"
-        table += "| Function | Total Tokens | Total Cost |\n"
-        table += "|----------|--------------|------------|\n"
-        
-        for func_name, stats in usage_by_function.items():
-            table += f"| {func_name} | {stats['total_tokens']:,} | ${stats['total_cost']:.4f} |\n"
-        
-        return formatted_logs, table
     except Exception as e:
         logger.error(f"Error applying filters: {e}")
-        return [], f"Error applying filters: {str(e)}"
+        return []  # Return empty list on error
 
 def update_usage_by_function():
     """Update the usage by function statistics."""
@@ -1327,11 +1313,11 @@ with gr.Blocks(
 
     refresh_logs.click(
         update_logs,
-        outputs=[token_usage_table, usage_by_function]
+        outputs=[token_usage_table]
     )
 
     clear_filters.click(
-        lambda: ([], "No usage data available"),
+        lambda: ([], "No usage data available"),  # Return empty list for dataframe and default message
         outputs=[token_usage_table, usage_by_function]
     )
 
@@ -1344,7 +1330,7 @@ with gr.Blocks(
             min_cost, max_cost,
             result_limit
         ],
-        outputs=[token_usage_table, usage_by_function]
+        outputs=[token_usage_table]
     )
 
     refresh_function_usage.click(

@@ -23,7 +23,10 @@ src/db/chroma/
 *.sqlite
 *.sqlite3
 
+# backup
+src_backup
 
 # docs
 report.md
 code_analysis.txt
+repomix-output-src.zip.xml

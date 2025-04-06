@@ -66,7 +66,7 @@ class LoggingManager:
                 
             root_logger.setLevel(logging.INFO)
             
-            # Create rotating file handler with proper error handling
+            # Create rotating file handler ONLY for critical errors
             try:
                 file_handler = RotatingFileHandler(
                     os.path.join(log_dir, 'app.log'),
@@ -74,12 +74,13 @@ class LoggingManager:
                     backupCount=5,
                     encoding='utf-8'
                 )
+                file_handler.setLevel(logging.CRITICAL)  # Only log CRITICAL level
                 file_handler.setFormatter(StructuredLogFormatter())
                 root_logger.addHandler(file_handler)
             except Exception as e:
                 print(f"Failed to create file handler: {e}")  # Use print as logger not ready
                 
-            # Create console handler with simpler format
+            # Create console handler with simpler format for development
             console_handler = logging.StreamHandler()
             console_handler.setFormatter(logging.Formatter(
                 '%(asctime)s - %(name)s - %(levelname)s - %(message)s'

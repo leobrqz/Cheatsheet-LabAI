@@ -78,8 +78,14 @@ class TokenUsageTracker:
                 with self._cache_lock:
                     self._cache.clear()  # Simple invalidation strategy
         except Exception as e:
-            logger.error(f"Failed to add log entry: {e}")
+            # Only log critical errors to file
+            logger.critical(f"Critical error in token tracking: {e}")
             raise
+    
+    def _clear_cache(self):
+        """Clear all cached results."""
+        with self._cache_lock:
+            self._cache.clear()
     
     def get_logs(self, limit: int = 100) -> List[Dict[str, Any]]:
         """Get logs from database with caching."""
@@ -90,10 +96,13 @@ class TokenUsageTracker:
             
         try:
             result = self.db.get_logs(limit)
-            self._cache_result(cache_key, result)
+            if not result:  # If no results, clear cache to ensure fresh data next time
+                self._clear_cache()
+            else:
+                self._cache_result(cache_key, result)
             return result
         except Exception as e:
-            logger.error(f"Failed to retrieve logs: {e}")
+            logger.critical(f"Critical error retrieving logs: {e}")
             raise
     
     def get_logs_by_date_range(self, start_date: str, end_date: str, 
@@ -112,7 +121,7 @@ class TokenUsageTracker:
             self._cache_result(cache_key, result)
             return result
         except Exception as e:
-            logger.error(f"Failed to retrieve logs by date range: {e}")
+            logger.critical(f"Critical error retrieving logs by date range: {e}")
             raise
     
     def get_logs_by_function(self, function_name: str, 
@@ -130,7 +139,7 @@ class TokenUsageTracker:
             self._cache_result(cache_key, result)
             return result
         except Exception as e:
-            logger.error(f"Failed to retrieve logs by function: {e}")
+            logger.critical(f"Critical error retrieving logs by function: {e}")
             raise
     
     def get_logs_by_token_range(self, min_tokens: int, max_tokens: int, 
@@ -149,7 +158,7 @@ class TokenUsageTracker:
             self._cache_result(cache_key, result)
             return result
         except Exception as e:
-            logger.error(f"Failed to retrieve logs by token range: {e}")
+            logger.critical(f"Critical error retrieving logs by token range: {e}")
             raise
     
     def get_logs_by_cost_range(self, min_cost: float, max_cost: float, 
@@ -168,7 +177,7 @@ class TokenUsageTracker:
             self._cache_result(cache_key, result)
             return result
         except Exception as e:
-            logger.error(f"Failed to retrieve logs by cost range: {e}")
+            logger.critical(f"Critical error retrieving logs by cost range: {e}")
             raise
     
     def get_unique_functions(self) -> List[str]:
@@ -183,7 +192,7 @@ class TokenUsageTracker:
             self._cache_result(cache_key, result)
             return result
         except Exception as e:
-            logger.error(f"Failed to retrieve unique functions: {e}")
+            logger.critical(f"Critical error retrieving unique functions: {e}")
             raise
 
 # Create global token tracker instance

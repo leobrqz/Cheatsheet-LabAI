@@ -79,19 +79,14 @@ class ChromaDatabase:
                 if not self.client:
                     raise RuntimeError("Failed to initialize ChromaDB client")
                 
-                # Test connection by creating a collection
-                test_collection = self.client.get_or_create_collection(
-                    name="test_connection",
-                    metadata={"description": "Test collection for initialization"}
-                )
-                if not test_collection:
-                    raise RuntimeError("Failed to create test collection")
+                # Ensure the token_logs collection exists
+                self._ensure_token_logs_collection()
                 
                 self._initialized = True
                 logger.info(f"Successfully initialized Chroma database at {self.db_path}")
             except Exception as e:
                 self._initialized = False
-                logger.error(f"Error initializing ChromaDatabase: {e}")
+                logger.critical(f"Critical error initializing ChromaDatabase: {e}")
                 raise RuntimeError(f"Failed to initialize ChromaDatabase: {e}")
     
     def __del__(self):
@@ -140,12 +135,32 @@ class ChromaDatabase:
                 # Recreate the collection
                 self.collection = self.client.create_collection(
                     name="token_logs",
-                    metadata={"description": "Token usage logs for OpenAI API calls"}
+                    metadata={
+                        "description": "Token usage logs for OpenAI API calls",
+                        "schema_timestamp": "float",
+                        "schema_function_name": "str",
+                        "schema_prompt_tokens": "int",
+                        "schema_completion_tokens": "int",
+                        "schema_total_tokens": "int",
+                        "schema_cost": "float"
+                    }
                 )
                 
                 # Reset thread-local collection
                 if hasattr(self._local, 'collection'):
                     self._local.collection = self.collection
+                
+                # Clear collection cache
+                with self._collection_cache_lock:
+                    self._collection_cache.clear()
+                
+                # Clear thread-local storage
+                if hasattr(self._local, 'collection'):
+                    delattr(self._local, 'collection')
+                
+                # Persist changes
+                if hasattr(self.client, 'persist'):
+                    self.client.persist()
                 
                 logger.info("Collection reset completed successfully")
         except Exception as e:
@@ -188,7 +203,15 @@ class ChromaDatabase:
         with self._collection_lock:
             collection = self.client.get_or_create_collection(
                 name="token_logs",
-                metadata={"description": "Token usage logs for OpenAI API calls"}
+                metadata={
+                    "description": "Token usage logs for OpenAI API calls",
+                    "schema_timestamp": "float",
+                    "schema_function_name": "str",
+                    "schema_prompt_tokens": "int",
+                    "schema_completion_tokens": "int",
+                    "schema_total_tokens": "int",
+                    "schema_cost": "float"
+                }
             )
             
             # Update cache
@@ -698,4 +721,24 @@ class ChromaDatabase:
             documents=[structure]
         )
         
-        return True 
+        return True
+
+    def _ensure_token_logs_collection(self):
+        """Ensure the token_logs collection exists with proper schema."""
+        try:
+            collection = self.client.get_or_create_collection(
+                name="token_logs",
+                metadata={
+                    "description": "Token usage logs for OpenAI API calls",
+                    "schema_timestamp": "float",
+                    "schema_function_name": "str",
+                    "schema_prompt_tokens": "int",
+                    "schema_completion_tokens": "int",
+                    "schema_total_tokens": "int",
+                    "schema_cost": "float"
+                }
+            )
+            return collection
+        except Exception as e:
+            logger.critical(f"Failed to ensure token_logs collection: {e}")
+            raise 

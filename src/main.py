@@ -333,7 +333,14 @@ def update_logs():
     try:
         logs = get_token_logs()
         if not logs:
-            return []  # Return empty list for empty data
+            return [], """
+            | Metric | Value |
+            |--------|-------|
+            | Total Tokens | 0 |
+            | Total Cost | $0.00 |
+            | Avg Tokens/Call | 0 |
+            | Avg Cost/Call | $0.00 |
+            """, "No usage data available by function"
         
         # Format logs for display
         formatted_logs = []
@@ -347,20 +354,75 @@ def update_logs():
                 f"${log['cost']:.4f}"
             ])
         
-        return formatted_logs  # Return only the formatted logs
+        # Calculate totals
+        total_tokens = sum(log['total_tokens'] for log in logs)
+        total_cost = sum(log['cost'] for log in logs)
+        total_calls = len(logs)
+        
+        # Calculate averages
+        avg_tokens = total_tokens / total_calls if total_calls > 0 else 0
+        avg_cost = total_cost / total_calls if total_calls > 0 else 0
+        
+        # Format the overview statistics
+        stats_table = f"""
+        | Metric | Value |
+        |--------|-------|
+        | Total Tokens | {total_tokens:,} |
+        | Total Cost | ${total_cost:.4f} |
+        | Avg Tokens/Call | {avg_tokens:,.1f} |
+        | Avg Cost/Call | ${avg_cost:.4f} |
+        """
+        
+        # Calculate and format usage by function
+        usage_by_function = calculate_total_usage_by_function(logs)
+        if not usage_by_function:
+            return formatted_logs, stats_table, "No usage data available by function"
+        
+        # Format the usage statistics as a markdown table
+        table = "### Usage by Function\n\n"
+        table += "| Function | Total Tokens | Total Cost | % of Total |\n"
+        table += "|----------|--------------|------------|------------|\n"
+        
+        for func_name, stats in usage_by_function.items():
+            token_percentage = (stats['total_tokens'] / total_tokens * 100) if total_tokens > 0 else 0
+            cost_percentage = (stats['total_cost'] / total_cost * 100) if total_cost > 0 else 0
+            table += f"| {func_name} | {stats['total_tokens']:,} | ${stats['total_cost']:.4f} | {token_percentage:.1f}% |\n"
+        
+        return formatted_logs, stats_table, table
         
     except Exception as e:
         logger.error(f"Error updating logs: {e}")
-        return []  # Return empty list on error
+        return [], """
+        | Metric | Value |
+        |--------|-------|
+        | Total Tokens | 0 |
+        | Total Cost | $0.00 |
+        | Avg Tokens/Call | 0 |
+        | Avg Cost/Call | $0.00 |
+        """, f"Error updating logs: {str(e)}"
 
 def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_tokens, min_cost, max_cost, limit):
     """Apply combined filters to token usage logs."""
     try:
         # Validate date format
         if start_date and not validate_date_format(start_date):
-            return []  # Return empty list for invalid date format
+            return [], """
+            | Metric | Value |
+            |--------|-------|
+            | Total Tokens | 0 |
+            | Total Cost | $0.00 |
+            | Avg Tokens/Call | 0 |
+            | Avg Cost/Call | $0.00 |
+            """, "Invalid date format. Use YYYY-MM-DD"
         if end_date and not validate_date_format(end_date):
-            return []  # Return empty list for invalid date format
+            return [], """
+            | Metric | Value |
+            |--------|-------|
+            | Total Tokens | 0 |
+            | Total Cost | $0.00 |
+            | Avg Tokens/Call | 0 |
+            | Avg Cost/Call | $0.00 |
+            """, "Invalid date format. Use YYYY-MM-DD"
         
         # Build query
         query_builder = LogQueryBuilder()
@@ -380,7 +442,7 @@ def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_
         if limit:
             query_builder.set_limit(limit)
         
-        # Execute query - pass the query dictionary directly
+        # Execute query
         query_dict = query_builder.build()
         logs = db.query_logs(query_dict)
         
@@ -396,11 +458,63 @@ def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_
                 f"${log['cost']:.4f}"
             ])
         
-        return formatted_logs  # Return only the formatted logs
+        # Calculate statistics for filtered logs
+        if not logs:
+            return formatted_logs, """
+            | Metric | Value |
+            |--------|-------|
+            | Total Tokens | 0 |
+            | Total Cost | $0.00 |
+            | Avg Tokens/Call | 0 |
+            | Avg Cost/Call | $0.00 |
+            """, "No data matches the filter criteria"
+            
+        # Calculate totals
+        total_tokens = sum(log['total_tokens'] for log in logs)
+        total_cost = sum(log['cost'] for log in logs)
+        total_calls = len(logs)
+        
+        # Calculate averages
+        avg_tokens = total_tokens / total_calls if total_calls > 0 else 0
+        avg_cost = total_cost / total_calls if total_calls > 0 else 0
+        
+        # Format the overview statistics
+        stats_table = f"""
+        | Metric | Value |
+        |--------|-------|
+        | Total Tokens | {total_tokens:,} |
+        | Total Cost | ${total_cost:.4f} |
+        | Avg Tokens/Call | {avg_tokens:,.1f} |
+        | Avg Cost/Call | ${avg_cost:.4f} |
+        """
+        
+        # Calculate and format usage by function
+        usage_by_function = calculate_total_usage_by_function(logs)
+        if not usage_by_function:
+            return formatted_logs, stats_table, "No usage data available by function"
+        
+        # Format the usage statistics as a markdown table
+        table = "### Usage by Function\n\n"
+        table += "| Function | Total Tokens | Total Cost | % of Total |\n"
+        table += "|----------|--------------|------------|------------|\n"
+        
+        for func_name, stats in usage_by_function.items():
+            token_percentage = (stats['total_tokens'] / total_tokens * 100) if total_tokens > 0 else 0
+            cost_percentage = (stats['total_cost'] / total_cost * 100) if total_cost > 0 else 0
+            table += f"| {func_name} | {stats['total_tokens']:,} | ${stats['total_cost']:.4f} | {token_percentage:.1f}% |\n"
+        
+        return formatted_logs, stats_table, table
         
     except Exception as e:
         logger.error(f"Error applying filters: {e}")
-        return []  # Return empty list on error
+        return [], """
+        | Metric | Value |
+        |--------|-------|
+        | Total Tokens | 0 |
+        | Total Cost | $0.00 |
+        | Avg Tokens/Call | 0 |
+        | Avg Cost/Call | $0.00 |
+        """, f"Error applying filters: {str(e)}"
 
 def update_usage_by_function():
     """Update the usage by function statistics."""
@@ -1312,17 +1426,50 @@ with gr.Blocks(
     )
 
     refresh_logs.click(
-        update_logs,
+        fn=lambda: update_logs()[0],  # Only pass the first element (formatted_logs) to the dataframe
         outputs=[token_usage_table]
+    ).then(
+        fn=lambda: update_logs()[1:],  # Pass the remaining elements (stats_table and usage_by_function) to their components
+        outputs=[total_stats, usage_by_function]
     )
 
     clear_filters.click(
-        lambda: ([], "No usage data available"),  # Return empty list for dataframe and default message
-        outputs=[token_usage_table, usage_by_function]
+        lambda: (
+            [],  # Empty table
+            """
+            | Metric | Value |
+            |--------|-------|
+            | Total Tokens | 0 |
+            | Total Cost | $0.00 |
+            | Avg Tokens/Call | 0 |
+            | Avg Cost/Call | $0.00 |
+            """,  # Reset stats
+            "No usage data available by function"  # Reset usage by function
+        ),
+        outputs=[token_usage_table, total_stats, usage_by_function]
+    ).then(
+        # Reset filter inputs
+        lambda: (
+            "",  # start_date
+            "",  # end_date
+            None,  # function_dropdown
+            0,  # min_tokens
+            10000,  # max_tokens
+            0,  # min_cost
+            1,  # max_cost
+            100,  # result_limit
+        ),
+        outputs=[
+            start_date, end_date,
+            function_dropdown,
+            min_tokens, max_tokens,
+            min_cost, max_cost,
+            result_limit
+        ]
     )
 
     apply_smart_filter.click(
-        apply_combined_filters,
+        fn=lambda *args: apply_combined_filters(*args)[0],  # Only pass the first element (formatted_logs) to the dataframe
         inputs=[
             start_date, end_date,
             function_dropdown,
@@ -1331,6 +1478,16 @@ with gr.Blocks(
             result_limit
         ],
         outputs=[token_usage_table]
+    ).then(
+        fn=lambda *args: apply_combined_filters(*args)[1:],  # Pass the remaining elements (stats_table and usage_by_function) to their components
+        inputs=[
+            start_date, end_date,
+            function_dropdown,
+            min_tokens, max_tokens,
+            min_cost, max_cost,
+            result_limit
+        ],
+        outputs=[total_stats, usage_by_function]
     )
 
     refresh_function_usage.click(

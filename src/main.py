@@ -955,7 +955,7 @@ with gr.Blocks(
             # Title Section
             gr.Markdown(
                 """
-        # AI Cheatsheet Generator
+                # AI Cheatsheet Generator
                 ### Your AI-powered learning companion
                 """,
                 elem_classes=["about-title", "center-text"]
@@ -1021,7 +1021,6 @@ with gr.Blocks(
                             ["OpenAI API", "Latest", "AI Model Integration"],
                             ["Gradio", "Latest", "UI Framework"],
                             ["ChromaDB", "Latest", "Vector Database"],
-                            ["SQLite", "3.x", "Token Usage Storage"],
                             ["LangChain", "Latest", "LLM Framework"]
                         ],
                         elem_classes="tech-stack-table"
@@ -1037,7 +1036,6 @@ with gr.Blocks(
                         - [OpenAI API](https://platform.openai.com/docs/api-reference) - AI Model Integration
                         - [Gradio](https://www.gradio.app/docs) - UI Framework
                         - [ChromaDB](https://docs.trychroma.com/) - Vector Database
-                        - [SQLite](https://www.sqlite.org/docs.html) - Token Usage Storage
                         - [LangChain](https://python.langchain.com/docs/get_started/introduction) - LLM Framework
                         """
                     )
@@ -1057,8 +1055,8 @@ with gr.Blocks(
                 with gr.Column():
                     gr.Markdown(
                         """
-                        ### Leonardo Briquezi
-                        #### AI Developer & Software Engineer
+                        
+                        #### Leonardo Briquezi - AI Developer & Software Engineer
                         
                         [![GitHub](https://img.shields.io/badge/GitHub-leobrqz-181717?style=for-the-badge&logo=github)](https://github.com/leobrqz)
                         [![LinkedIn](https://img.shields.io/badge/LinkedIn-leonardobri-0A66C2?style=for-the-badge&logo=linkedin)](https://www.linkedin.com/in/leonardobri/)

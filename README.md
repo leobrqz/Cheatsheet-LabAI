@@ -3,45 +3,44 @@
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/downloads/)
 [![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4-green)](https://openai.com)
 [![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector%20DB-orange)](https://www.trychroma.com/)
+[![LangChain](https://img.shields.io/badge/LangChain-LLM%20Framework-purple)](https://python.langchain.com/)
+[![Gradio](https://img.shields.io/badge/Gradio-UI%20Framework-red)](https://gradio.app/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-An AI-powered tool that generates customized educational content using OpenAI's GPT models. Create comprehensive cheatsheets, quizzes, flashcards, and practice problems tailored to your learning needs.
+An AI-powered educational content generator leveraging OpenAI's GPT models and ChromaDB for vector storage. Features include dynamic cheatsheet generation, interactive learning tools, and token usage analytics. Built with thread-safe operations and robust error handling.
 
 ## 🔄 Recent Updates
 
 ### Architecture & Performance Improvements
-- 🚀 Enhanced ChromaDB integration with thread-safe operations, connection pooling, and robust error handling
-- 🔍 Advanced token usage tracking with caching, filtering, and analytics capabilities
-- ⚡ Implemented rate limiting and exponential backoff for API calls
-- 🔒 Added comprehensive error handling with custom exception hierarchy
-- 📊 Improved template management system with CRUD operations and validation
+- 🚀 Enhanced ChromaDB with thread-safe operations and error handling with backoff
+- 🔍 Token usage tracking with filtering and analytics
+- ⚡ Error handling with exponential backoff for API calls
+- 🔒 Error handling and logging system
+- 📊 Template management with CRUD operations
 
 ## ✨ Features
 
 ### 📚 Content Generation
-- **Smart Cheatsheets**: AI-powered content generation with customizable templates, complexity levels, and audience targeting
-- **Interactive Quizzes**: Dynamic question generation with multiple formats and difficulty levels
-- **Study Flashcards**: Intelligent flashcard creation with customizable formats
-- **Practice Problems**: Context-aware problem generation with detailed solutions
-- **Content Summarization**: Smart content summarization with adjustable focus levels
+- **Smart Cheatsheets**: AI-powered content generation with customizable templates
+- **Interactive Quizzes**: Dynamic question generation with multiple formats
+- **Study Flashcards**: Flashcard creation with customizable formats
+- **Practice Problems**: Problem generation with detailed solutions
+- **Content Summarization**: Smart content summarization with adjustable focus
 
 ### 🛠️ Template Management
 - **Custom Templates**: Create, edit, and manage custom content templates
-- **Template Categories**: Organize templates by type (study, coding, reference)
-- **Template Validation**: Built-in validation for template structure and content
+- **Template Types**: Template categorization (Default/Custom)
 - **Default Templates**: Pre-configured templates for common use cases
 
 ### 📊 Analytics & Monitoring
-- **Token Usage Tracking**: Real-time monitoring with advanced filtering and caching
-- **Performance Analytics**: Function-specific metrics and usage patterns
-- **Cost Analysis**: Detailed cost tracking and reporting by function and date
-- **Query Builder**: Flexible query system for advanced analytics
+- **Token Usage Tracking**: Usage monitoring with filtering capabilities
+- **Cost Analysis**: Detailed cost tracking and reporting
+- **Query Builder**: Flexible query system for token usage analysis
 
 ### 🔒 System Architecture
-- **Thread-Safe Operations**: Robust concurrency handling with proper locking mechanisms
-- **Error Recovery**: Automatic retry mechanisms with exponential backoff
+- **Thread-Safe Operations**: Concurrency handling with locks
+- **Error Handling**: Error recovery with logging
 - **Resource Management**: Proper cleanup and resource handling
-- **Caching System**: Efficient caching with TTL for improved performance
 
 ## 🛠️ Setup Instructions
 

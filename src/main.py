@@ -25,7 +25,6 @@ from datetime import datetime, timedelta
 from logger import get_logger
 from typing import Union, List, Any
 from query_builder import LogQueryBuilder
-from pathlib import Path
 import json
 
 # Get logger instance

@@ -4,6 +4,7 @@ import re
 from logger import get_logger
 import backoff
 from functools import wraps
+from utils import validate_date_format, validate_numeric_range, validate_positive_integer
 
 # Get logger instance
 logger = get_logger(__name__)
@@ -62,11 +63,9 @@ class LogQueryBuilder:
         Raises:
             InvalidDateError: If date format is invalid
         """
-        try:
-            datetime.strptime(date_str, "%Y-%m-%d")
-            return True
-        except ValueError:
+        if not validate_date_format(date_str):
             raise InvalidDateError(f"Invalid date format: {date_str}. Expected YYYY-MM-DD format")
+        return True
     
     @handle_query_errors
     def _validate_numeric_range(self, min_val: float, max_val: float) -> bool:
@@ -83,7 +82,7 @@ class LogQueryBuilder:
         Raises:
             InvalidRangeError: If range is invalid
         """
-        if min_val > max_val:
+        if not validate_numeric_range(min_val, max_val):
             raise InvalidRangeError(f"Invalid range: min ({min_val}) must be less than or equal to max ({max_val})")
         return True
     

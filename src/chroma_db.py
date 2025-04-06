@@ -8,6 +8,7 @@ import backoff
 from functools import wraps
 import threading
 from query_builder import LogQueryBuilder
+from utils import validate_numeric_range, validate_positive_integer
 
 # Get logger instance
 logger = get_logger(__name__)
@@ -360,15 +361,13 @@ class ChromaDatabase:
         """Get logs within a token range."""
         try:
             # Validate token range
-            if not isinstance(min_tokens, int) or min_tokens < 0:
-                raise ValueError("min_tokens must be a non-negative integer")
-            if not isinstance(max_tokens, int) or max_tokens < 0:
-                raise ValueError("max_tokens must be a non-negative integer")
-            if not self._validate_numeric_range(min_tokens, max_tokens):
+            if not validate_positive_integer(min_tokens) or not validate_positive_integer(max_tokens):
+                raise ValueError("min_tokens and max_tokens must be positive integers")
+            if not validate_numeric_range(min_tokens, max_tokens):
                 raise ValueError("min_tokens must be less than or equal to max_tokens")
             
             # Validate limit
-            if not isinstance(limit, int) or limit <= 0:
+            if not validate_positive_integer(limit):
                 raise ValueError("limit must be a positive integer")
             
             # Query the collection
@@ -449,21 +448,27 @@ class ChromaDatabase:
     def get_logs_by_cost_range(self, min_cost: float, max_cost: float, 
                               limit: int = 100) -> List[Dict[str, Any]]:
         """Get logs within a specific cost range."""
-        if not self._validate_numeric_range(min_cost, max_cost):
-            raise ValueError("Invalid cost range")
+        try:
+            if not validate_numeric_range(min_cost, max_cost):
+                raise ValueError("Invalid cost range")
+            if not validate_positive_integer(limit):
+                raise ValueError("limit must be a positive integer")
+                
+            collection = self._get_thread_safe_collection()
+            results = collection.get(
+                where={
+                    "$and": [
+                        {"cost": {"$gte": min_cost}},
+                        {"cost": {"$lte": max_cost}}
+                    ]
+                },
+                limit=limit
+            )
             
-        collection = self._get_thread_safe_collection()
-        results = collection.get(
-            where={
-                "$and": [
-                    {"cost": {"$gte": min_cost}},
-                    {"cost": {"$lte": max_cost}}
-                ]
-            },
-            limit=limit
-        )
-        
-        return self._format_results(results)
+            return self._format_results(results)
+        except Exception as e:
+            logger.error(f"Error getting logs by cost range: {e}")
+            raise
 
     @handle_chroma_errors
     def query_logs(self, query_builder: 'LogQueryBuilder', limit: int = 100) -> List[Dict[str, Any]]:

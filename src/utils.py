@@ -140,27 +140,25 @@ def is_valid_date_range(start_date: str, end_date: str, allow_time: bool = True)
         
     return True, None
 
-def validate_date_format(date_str: str) -> str:
+def validate_date_format(date_str: str) -> bool:
     """
-    Validates and normalizes date string to ISO format.
+    Validate date string format.
     
     Args:
-        date_str: Date string in YYYY-MM-DD format
+        date_str: Date string to validate
         
     Returns:
-        Normalized ISO format date string
-        
-    Raises:
-        ValueError: If date format is invalid
+        bool: True if valid, False otherwise
     """
     try:
-        # Parse the date string
-        date_obj = datetime.strptime(date_str, "%Y-%m-%d")
-        # Return ISO format string
-        return date_obj.isoformat()
-    except ValueError as e:
-        logger.error(f"Invalid date format: {date_str}")
-        raise ValueError(f"Invalid date format. Use YYYY-MM-DD. Error: {str(e)}")
+        datetime.strptime(date_str, "%Y-%m-%d")
+        return True
+    except ValueError:
+        try:
+            datetime.fromisoformat(date_str)
+            return True
+        except ValueError:
+            return False
 
 def format_date_for_display(iso_date: str) -> str:
     """
@@ -180,4 +178,37 @@ def format_date_for_display(iso_date: str) -> str:
         return date_obj.strftime("%Y-%m-%d")
     except ValueError as e:
         logger.error(f"Invalid ISO date format: {iso_date}")
-        raise ValueError(f"Invalid ISO date format: {iso_date}. Error: {str(e)}") 
+        raise ValueError(f"Invalid ISO date format: {iso_date}. Error: {str(e)}")
+
+def validate_numeric_range(min_val: float, max_val: float) -> bool:
+    """
+    Validate numeric range.
+    
+    Args:
+        min_val: Minimum value
+        max_val: Maximum value
+        
+    Returns:
+        bool: True if valid, False otherwise
+    """
+    try:
+        if not isinstance(min_val, (int, float)) or not isinstance(max_val, (int, float)):
+            return False
+        return min_val <= max_val
+    except Exception:
+        return False
+
+def validate_positive_integer(value: int) -> bool:
+    """
+    Validate if a value is a positive integer.
+    
+    Args:
+        value: Value to validate
+        
+    Returns:
+        bool: True if valid, False otherwise
+    """
+    try:
+        return isinstance(value, int) and value > 0
+    except Exception:
+        return False 

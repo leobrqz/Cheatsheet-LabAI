@@ -5,9 +5,11 @@
 [![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector%20DB-orange)](https://www.trychroma.com/)
 [![LangChain](https://img.shields.io/badge/LangChain-LLM%20Framework-purple)](https://python.langchain.com/)
 [![Gradio](https://img.shields.io/badge/Gradio-UI%20Framework-red)](https://gradio.app/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 
 An AI-powered educational content generator leveraging OpenAI's GPT models and ChromaDB for vector storage. Features include dynamic cheatsheet generation, interactive learning tools, and token usage analytics. Built with thread-safe operations and robust error handling.
+
+### Also available on <a href="https://huggingface.co/Synthduck"><img src="https://img.shields.io/badge/🤗_|_Hugging_Face-blue?style=flat" alt="Hugging Face" height="20" style="vertical-align:middle"></a>
 
 ## 🔄 Recent Updates
 

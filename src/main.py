@@ -949,28 +949,43 @@ with gr.Blocks(
                         with gr.Tab("📝 Content Generation", elem_classes="feature-tab"):
                             gr.Markdown(
                                 """
-                                - Advanced AI-powered content generation
-                                - Multiple templates and styles
-                                - Customizable outputs
-                                - Smart formatting options
+                                - Customizable prompts with theme and subject inputs
+                                - Multiple style options (Minimal, Detailed, etc.)
+                                - Adjustable complexity levels
+                                - Target audience selection
+                                - Example inclusion options
+                                - Markdown formatting enforcement
                                 """
                             )
                         with gr.Tab("📚 Learning Tools", elem_classes="feature-tab"):
                             gr.Markdown(
                                 """
-                                - Interactive quizzes with multiple formats
-                                - Spaced repetition flashcard system
-                                - Customizable practice problems
-                                - Smart content summaries
+                                - Multiple-choice and open-ended quizzes
+                                - Interactive flashcard generation
+                                - Practice problems with detailed solutions
+                                - Adjustable difficulty levels
+                                - Customizable number of questions
+                                """
+                            )
+                        with gr.Tab("🔧 Templates", elem_classes="feature-tab"):
+                            gr.Markdown(
+                                """
+                                - Template management system
+                                - Default and custom template support
+                                - Template search and filtering
+                                - Preview functionality
+                                - Easy template creation and editing
+                                - Markdown-based template structure
                                 """
                             )
                         with gr.Tab("📊 Analytics", elem_classes="feature-tab"):
                             gr.Markdown(
                                 """
-                                - Detailed token usage monitoring
-                                - Cost tracking and analysis
-                                - Usage pattern visualization
-                                - Performance metrics
+                                - Detailed token usage monitoring and logs
+                                - Total usage statistics and cost tracking
+                                - Function-wise usage breakdown
+                                - Smart filtering system with multiple parameters
+                                - Customizable result limits
                                 """
                             )
                 
@@ -1002,15 +1017,6 @@ with gr.Blocks(
                         - [LangChain](https://python.langchain.com/docs/get_started/introduction) - LLM Framework
                         """
                     )
-                with gr.Column():
-                    gr.Markdown(
-                        """
-                        ### Project Links
-                        - [GitHub Repository](https://github.com/leobrqz/ai-cheatsheet-generator)
-                        - [Report Issues](https://github.com/leobrqz/ai-cheatsheet-generator/issues)
-                        - [Contributing Guidelines](https://github.com/leobrqz/ai-cheatsheet-generator/blob/main/CONTRIBUTING.md)
-                        """
-                    )
             
             # Developer Section
             gr.Markdown("## Connect With The Developer")
@@ -1021,8 +1027,9 @@ with gr.Blocks(
                         
                         #### Leonardo Briquezi - AI Developer & Software Engineer
                         
-                        [![GitHub](https://img.shields.io/badge/GitHub-leobrqz-181717?style=for-the-badge&logo=github)](https://github.com/leobrqz)
                         [![LinkedIn](https://img.shields.io/badge/LinkedIn-leonardobri-0A66C2?style=for-the-badge&logo=linkedin)](https://www.linkedin.com/in/leonardobri/)
+                        [![Hugging Face](https://img.shields.io/badge/_Hugging_Face-Synthduck-FFD21E?style=for-the-badge&logo=huggingface)](https://huggingface.co/Synthduck)
+                        [![GitHub](https://img.shields.io/badge/GitHub-leobrqz-181717?style=for-the-badge&logo=github)](https://github.com/leobrqz)
                         """
                     )
 
@@ -1696,4 +1703,4 @@ with gr.Blocks(
     """)
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(share=False)

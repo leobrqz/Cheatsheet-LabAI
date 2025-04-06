@@ -474,7 +474,12 @@ def update_usage_by_function():
         return f"Error updating usage by function: {str(e)}", stats_table
 
 # Create Gradio interface using Blocks
-with gr.Blocks(css=config.CSS) as demo:
+with gr.Blocks(
+    theme=gr.themes.Default(),
+    css=config.CSS,
+    analytics_enabled=False,
+    mode="blocks"
+) as demo:
     gr.Markdown("# AI Cheatsheet Generator")
     
     # Hidden state to store summarized content
@@ -838,49 +843,173 @@ with gr.Blocks(css=config.CSS) as demo:
                             apply_smart_filter = gr.Button("🔍 Apply Smart Filter", variant="primary", elem_classes="filter-button")
 
     with gr.Tab("About"):
-        gr.Markdown("""
-        # AI Cheatsheet Generator
-        
-        ## How This App Works
-        
-        ### 1. Cheatsheet Generation 🎯
-        - Enter your prompt, theme, and subject
-        - Choose from various templates and styles
-        - Let AI generate high-quality content
-        
-        ### 2. Learning Features 📚
-        - **Quizzes** 📝 - Test your knowledge with multiple-choice, fill-in-the-blank, or true/false questions
-        - **Flashcards** 🗂️ - Create study cards for memorization and review
-        - **Practice Problems** ✍️ - Generate exercises to reinforce learning
-        - **Summaries** 📚 - Get concise summaries at different detail levels
-        
-        ### 3. Token Usage Tracking 📊
-        - Monitor API usage and costs
-        - View detailed logs of all API calls
-        - Track usage patterns over time
-        
-        ## Technical Stack
-        
-        - 🐍 Built with Python
-        - 🎨 Gradio UI Framework
-        - 🤖 OpenAI API Integration
-        - 🗄️ SQLite Database
-        
-        #
-        ### Connect With Me
-        **Created by Leonardo Briquezi**
-        - [GitHub](https://github.com/leobrqz) 
-        - [LinkedIn](https://www.linkedin.com/in/leonardobri/) 💼
-        
-        
-    
-        ### Documentation
-        - [Gradio Documentation](https://www.gradio.app/docs) 🎨
-        - [OpenAI API Documentation](https://platform.openai.com/docs/api-reference) 🤖
-        - [LangChain Documentation](https://python.langchain.com/docs/get_started/introduction) 🔗
-        - [SQLite Documentation](https://www.sqlite.org/docs.html) 🗄️
-        
-        """)
+        with gr.Column():
+            # Title Section
+            gr.Markdown(
+                """
+                # AI Cheatsheet Generator
+                ### Your AI-powered learning companion
+                """,
+                elem_classes=["about-title", "center-text"]
+            )
+            
+            with gr.Row():
+                # Main Content Column
+                with gr.Column(scale=2):
+                    # Quick Start Guide
+                    with gr.Accordion("🚀 Quick Start Guide", open=True):
+                        gr.Markdown(
+                            """
+                            ### Getting Started
+                            1. Enter your topic in the Cheatsheet tab
+                            2. Choose your preferred template and style
+                            3. Generate and explore interactive learning features
+                            
+                            ### Key Features
+                            - **AI-Powered Generation**: Create comprehensive cheatsheets instantly
+                            - **Interactive Learning**: Access quizzes, flashcards, and practice problems
+                            - **Customizable Templates**: Choose from various templates or create your own
+                            """
+                        )
+                    
+                    # Core Features Section
+                    gr.Markdown("## Core Features")
+                    with gr.Tabs() as feature_tabs:
+                        with gr.Tab("📝 Content Generation", elem_classes="feature-tab"):
+                            gr.Markdown(
+                                """
+                                - Advanced AI-powered content generation
+                                - Multiple templates and styles
+                                - Customizable outputs
+                                - Smart formatting options
+                                """
+                            )
+                        with gr.Tab("📚 Learning Tools", elem_classes="feature-tab"):
+                            gr.Markdown(
+                                """
+                                - Interactive quizzes with multiple formats
+                                - Spaced repetition flashcard system
+                                - Customizable practice problems
+                                - Smart content summaries
+                                """
+                            )
+                        with gr.Tab("📊 Analytics", elem_classes="feature-tab"):
+                            gr.Markdown(
+                                """
+                                - Detailed token usage monitoring
+                                - Cost tracking and analysis
+                                - Usage pattern visualization
+                                - Performance metrics
+                                """
+                            )
+                
+                # Technical Info Column
+                with gr.Column(scale=1):
+                    gr.Markdown("## Technical Stack")
+                    gr.DataFrame(
+                        headers=["Technology", "Version", "Purpose"],
+                        value=[
+                            ["Python", "3.11", "Core Language"],
+                            ["OpenAI API", "Latest", "AI Model Integration"],
+                            ["Gradio", "Latest", "UI Framework"],
+                            ["ChromaDB", "Latest", "Vector Database"],
+                            ["SQLite", "3.x", "Token Usage Storage"],
+                            ["LangChain", "Latest", "LLM Framework"]
+                        ],
+                        elem_classes="tech-stack-table"
+                    )
+            
+            # Documentation Section
+            gr.Markdown("## Resources & Documentation")
+            with gr.Row():
+                with gr.Column():
+                    gr.Markdown(
+                        """
+                        ### Official Documentation
+                        - [OpenAI API](https://platform.openai.com/docs/api-reference) - AI Model Integration
+                        - [Gradio](https://www.gradio.app/docs) - UI Framework
+                        - [ChromaDB](https://docs.trychroma.com/) - Vector Database
+                        - [SQLite](https://www.sqlite.org/docs.html) - Token Usage Storage
+                        - [LangChain](https://python.langchain.com/docs/get_started/introduction) - LLM Framework
+                        """
+                    )
+                with gr.Column():
+                    gr.Markdown(
+                        """
+                        ### Project Links
+                        - [GitHub Repository](https://github.com/leobrqz/ai-cheatsheet-generator)
+                        - [Report Issues](https://github.com/leobrqz/ai-cheatsheet-generator/issues)
+                        - [Contributing Guidelines](https://github.com/leobrqz/ai-cheatsheet-generator/blob/main/CONTRIBUTING.md)
+                        """
+                    )
+            
+            # Developer Section
+            gr.Markdown("## Connect With The Developer")
+            with gr.Row():
+                with gr.Column():
+                    gr.Markdown(
+                        """
+                        ### Leonardo Briquezi
+                        #### AI Developer & Software Engineer
+                        
+                        [![GitHub](https://img.shields.io/badge/GitHub-leobrqz-181717?style=for-the-badge&logo=github)](https://github.com/leobrqz)
+                        [![LinkedIn](https://img.shields.io/badge/LinkedIn-leonardobri-0A66C2?style=for-the-badge&logo=linkedin)](https://www.linkedin.com/in/leonardobri/)
+                        """
+                    )
+
+        # CSS Styles
+        gr.Markdown(
+            """
+            <style>
+            .about-title {
+                text-align: center;
+                margin: 2em 0;
+            }
+            
+            .about-title h1 {
+                background: linear-gradient(90deg, #2563eb 0%, #4f46e5 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                font-size: 3em;
+                margin-bottom: 0.5em;
+            }
+            
+            .about-title h3 {
+                color: #6b7280;
+                font-size: 1.2em;
+            }
+            
+            .tech-stack-table {
+                margin-top: 1em;
+            }
+            
+            /* Gradio component overrides */
+            .gradio-container {
+                max-width: 1200px !important;
+                margin: 0 auto !important;
+            }
+            
+            .gradio-accordion {
+                border: 1px solid #e5e7eb !important;
+                border-radius: 12px !important;
+                margin: 1em 0 !important;
+            }
+            
+            .feature-tab {
+                padding: 1em !important;
+            }
+            
+            .feature-tab ul {
+                margin: 0;
+                padding-left: 1.5em;
+            }
+            
+            .feature-tab li {
+                margin: 0.5em 0;
+            }
+            </style>
+            """
+        )
 
     # Event handlers for the buttons
     def show_loading(loading_component, message):

@@ -413,7 +413,7 @@ def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_
             | Total Cost | $0.00 |
             | Avg Tokens/Call | 0 |
             | Avg Cost/Call | $0.00 |
-            """, "Invalid date format. Use YYYY-MM-DD"
+            """
         if end_date and not validate_date_format(end_date):
             return [], """
             | Metric | Value |
@@ -422,7 +422,7 @@ def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_
             | Total Cost | $0.00 |
             | Avg Tokens/Call | 0 |
             | Avg Cost/Call | $0.00 |
-            """, "Invalid date format. Use YYYY-MM-DD"
+            """
         
         # Build query
         query_builder = LogQueryBuilder()
@@ -446,11 +446,21 @@ def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_
         query_dict = query_builder.build()
         logs = db.query_logs(query_dict)
         
+        if not logs:
+            return [], """
+            | Metric | Value |
+            |--------|-------|
+            | Total Tokens | 0 |
+            | Total Cost | $0.00 |
+            | Avg Tokens/Call | 0 |
+            | Avg Cost/Call | $0.00 |
+            """
+        
         # Format logs for display
         formatted_logs = []
         for log in logs:
             formatted_logs.append([
-                log['timestamp'],
+                log['timestamp'].strftime("%Y-%m-%d %H:%M:%S") if isinstance(log['timestamp'], datetime) else log['timestamp'],
                 log['function_name'],
                 log['prompt_tokens'],
                 log['completion_tokens'],
@@ -458,18 +468,7 @@ def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_
                 f"${log['cost']:.4f}"
             ])
         
-        # Calculate statistics for filtered logs
-        if not logs:
-            return formatted_logs, """
-            | Metric | Value |
-            |--------|-------|
-            | Total Tokens | 0 |
-            | Total Cost | $0.00 |
-            | Avg Tokens/Call | 0 |
-            | Avg Cost/Call | $0.00 |
-            """, "No data matches the filter criteria"
-            
-        # Calculate totals
+        # Calculate totals for filtered data
         total_tokens = sum(log['total_tokens'] for log in logs)
         total_cost = sum(log['cost'] for log in logs)
         total_calls = len(logs)
@@ -488,22 +487,7 @@ def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_
         | Avg Cost/Call | ${avg_cost:.4f} |
         """
         
-        # Calculate and format usage by function
-        usage_by_function = calculate_total_usage_by_function(logs)
-        if not usage_by_function:
-            return formatted_logs, stats_table, "No usage data available by function"
-        
-        # Format the usage statistics as a markdown table
-        table = "### Usage by Function\n\n"
-        table += "| Function | Total Tokens | Total Cost | % of Total |\n"
-        table += "|----------|--------------|------------|------------|\n"
-        
-        for func_name, stats in usage_by_function.items():
-            token_percentage = (stats['total_tokens'] / total_tokens * 100) if total_tokens > 0 else 0
-            cost_percentage = (stats['total_cost'] / total_cost * 100) if total_cost > 0 else 0
-            table += f"| {func_name} | {stats['total_tokens']:,} | ${stats['total_cost']:.4f} | {token_percentage:.1f}% |\n"
-        
-        return formatted_logs, stats_table, table
+        return formatted_logs, stats_table
         
     except Exception as e:
         logger.error(f"Error applying filters: {e}")
@@ -514,7 +498,7 @@ def apply_combined_filters(start_date, end_date, function_name, min_tokens, max_
         | Total Cost | $0.00 |
         | Avg Tokens/Call | 0 |
         | Avg Cost/Call | $0.00 |
-        """, f"Error applying filters: {str(e)}"
+        """
 
 def update_usage_by_function():
     """Update the usage by function statistics."""
@@ -1425,14 +1409,26 @@ with gr.Blocks(
         outputs=[summary_loading]
     )
 
-    refresh_logs.click(
-        fn=lambda: update_logs()[0],  # Only pass the first element (formatted_logs) to the dataframe
-        outputs=[token_usage_table]
-    ).then(
-        fn=lambda: update_logs()[1:],  # Pass the remaining elements (stats_table and usage_by_function) to their components
-        outputs=[total_stats, usage_by_function]
+    # Update the click handlers for filtering
+    apply_smart_filter.click(
+        fn=apply_combined_filters,
+        inputs=[
+            start_date, end_date,
+            function_dropdown,
+            min_tokens, max_tokens,
+            min_cost, max_cost,
+            result_limit
+        ],
+        outputs=[token_usage_table, total_stats]
     )
 
+    # Update the refresh logs handler
+    refresh_logs.click(
+        fn=update_logs,
+        outputs=[token_usage_table, total_stats, usage_by_function]
+    )
+
+    # Update the clear filters handler
     clear_filters.click(
         lambda: (
             [],  # Empty table
@@ -1443,10 +1439,9 @@ with gr.Blocks(
             | Total Cost | $0.00 |
             | Avg Tokens/Call | 0 |
             | Avg Cost/Call | $0.00 |
-            """,  # Reset stats
-            "No usage data available by function"  # Reset usage by function
+            """  # Reset stats
         ),
-        outputs=[token_usage_table, total_stats, usage_by_function]
+        outputs=[token_usage_table, total_stats]
     ).then(
         # Reset filter inputs
         lambda: (
@@ -1466,28 +1461,6 @@ with gr.Blocks(
             min_cost, max_cost,
             result_limit
         ]
-    )
-
-    apply_smart_filter.click(
-        fn=lambda *args: apply_combined_filters(*args)[0],  # Only pass the first element (formatted_logs) to the dataframe
-        inputs=[
-            start_date, end_date,
-            function_dropdown,
-            min_tokens, max_tokens,
-            min_cost, max_cost,
-            result_limit
-        ],
-        outputs=[token_usage_table]
-    ).then(
-        fn=lambda *args: apply_combined_filters(*args)[1:],  # Pass the remaining elements (stats_table and usage_by_function) to their components
-        inputs=[
-            start_date, end_date,
-            function_dropdown,
-            min_tokens, max_tokens,
-            min_cost, max_cost,
-            result_limit
-        ],
-        outputs=[total_stats, usage_by_function]
     )
 
     refresh_function_usage.click(

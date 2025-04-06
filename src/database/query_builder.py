@@ -1,5 +1,5 @@
 from typing import List, Optional, Tuple, Any, Dict
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 from ..utils.logger import get_logger
 import backoff
@@ -105,6 +105,10 @@ class LogQueryBuilder:
             if start_dt > end_dt:
                 raise ValueError("Start date must be before end date")
             
+            # Add buffer days to handle timezone edge cases
+            start_dt = start_dt - timedelta(days=1)  # One day before
+            end_dt = end_dt + timedelta(days=1)      # One day after
+            
             # Set start of day for start_dt (00:00:00)
             start_dt = start_dt.replace(hour=0, minute=0, second=0, microsecond=0)
             # Set end of day for end_dt (23:59:59)
@@ -134,12 +138,8 @@ class LogQueryBuilder:
         # Clean and normalize the function name
         cleaned_name = function_name.strip()
         
-        # Add condition with exact match
-        self.conditions.append({
-            "function_name": {
-                "$eq": cleaned_name
-            }
-        })
+        # Add condition with simple equality
+        self.conditions.append({"function_name": cleaned_name})
         return self
     
     @handle_query_errors
@@ -232,16 +232,11 @@ class LogQueryBuilder:
                 "limit": getattr(self, 'limit', 100)
             }
             
-        # If we have only one condition, return it directly
-        if len(self.conditions) == 1:
-            return {
-                "where": self.conditions[0],
-                "limit": getattr(self, 'limit', 100)
-            }
-            
         # For multiple conditions, wrap them in $and
+        where_clause = {"$and": self.conditions} if len(self.conditions) > 1 else self.conditions[0]
+        
         return {
-            "where": {"$and": self.conditions},
+            "where": where_clause,
             "limit": getattr(self, 'limit', 100)
         }
     

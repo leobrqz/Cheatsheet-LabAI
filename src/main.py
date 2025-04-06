@@ -622,8 +622,14 @@ with gr.Blocks(
         gr.Markdown("<p style='text-align: center; color: #666;'>Generate a cheatsheet first to use these features</p>")
         
         # Quiz Section
-        gr.Markdown("<h2 style='text-align: center; font-size: 28px; margin: 20px 0;'>Quiz Generator</h2>")
-        with gr.Column():
+        with gr.Column(elem_classes="feature-section"):
+            gr.Markdown(
+                """
+                ## 📝 Quiz Generator
+                Create custom quizzes to test your knowledge
+                """,
+                elem_classes="feature-header"
+            )
             with gr.Row():
                 with gr.Column(scale=1):
                     quiz_type = gr.Dropdown(
@@ -657,8 +663,14 @@ with gr.Blocks(
         gr.Markdown("<hr style='border: 2px solid #ddd; margin: 30px 0;'>")
         
         # Flashcards Section
-        gr.Markdown("<h2 style='text-align: center; font-size: 28px; margin: 20px 0;'>Flashcards</h2>")
-        with gr.Column():
+        with gr.Column(elem_classes="feature-section"):
+            gr.Markdown(
+                """
+                ## 🗂️ Flashcards
+                Create interactive flashcards for effective memorization
+                """,
+                elem_classes="feature-header"
+            )
             with gr.Row():
                 with gr.Column(scale=1):
                     flashcard_count = gr.Slider(
@@ -680,8 +692,14 @@ with gr.Blocks(
         gr.Markdown("<hr style='border: 2px solid #ddd; margin: 30px 0;'>")
         
         # Practice Problems Section
-        gr.Markdown("<h2 style='text-align: center; font-size: 28px; margin: 20px 0;'>Practice Problems</h2>")
-        with gr.Column():
+        with gr.Column(elem_classes="feature-section"):
+            gr.Markdown(
+                """
+                ## 📚 Practice Problems
+                Generate practice exercises with detailed solutions
+                """,
+                elem_classes="feature-header"
+            )
             with gr.Row():
                 with gr.Column(scale=1):
                     problem_type = gr.Dropdown(
@@ -711,8 +729,14 @@ with gr.Blocks(
         gr.Markdown("<p style='text-align: center; color: #666;'>Generate a cheatsheet first to use these features</p>")
         
         # Smart Summarization Section
-        gr.Markdown("<h2 style='text-align: center; font-size: 28px; margin: 20px 0;'>Smart Summarization</h2>")
-        with gr.Column():
+        with gr.Column(elem_classes="feature-section"):
+            gr.Markdown(
+                """
+                ## 🤖 Smart Summarization
+                Generate intelligent summaries focused on key concepts
+                """,
+                elem_classes="feature-header"
+            )
             with gr.Row():
                 with gr.Column(scale=1):
                     summary_level = gr.Dropdown(
@@ -847,7 +871,7 @@ with gr.Blocks(
             # Title Section
             gr.Markdown(
                 """
-                # AI Cheatsheet Generator
+        # AI Cheatsheet Generator
                 ### Your AI-powered learning companion
                 """,
                 elem_classes=["about-title", "center-text"]
@@ -1006,6 +1030,74 @@ with gr.Blocks(
             
             .feature-tab li {
                 margin: 0.5em 0;
+            }
+
+            /* Feature Section Styles */
+            .feature-section {
+                background: white;
+                border: 1px solid #e5e7eb;
+                border-radius: 12px;
+                padding: 1.5em;
+                margin-bottom: 2em;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            }
+            
+            .feature-header {
+                margin-bottom: 1.5em;
+            }
+            
+            .feature-header h2 {
+                color: #1f2937;
+                font-size: 1.8em;
+                margin-bottom: 0.3em;
+                display: flex;
+                align-items: center;
+                gap: 0.5em;
+            }
+            
+            .feature-header p {
+                color: #6b7280;
+                font-size: 1.1em;
+            }
+            
+            /* Input Component Styles */
+            .feature-input {
+                margin-bottom: 1em;
+            }
+            
+            .feature-input label {
+                font-weight: 500;
+                color: #374151;
+            }
+            
+            /* Button Styles */
+            .action-button {
+                background: linear-gradient(90deg, #2563eb 0%, #4f46e5 100%) !important;
+                color: white !important;
+                border: none !important;
+                padding: 0.8em 1.5em !important;
+                border-radius: 8px !important;
+                font-weight: 500 !important;
+                margin: 1em 0 !important;
+                transition: all 0.2s ease-in-out !important;
+            }
+            
+            .action-button:hover {
+                transform: translateY(-1px) !important;
+                box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2) !important;
+            }
+            
+            /* Output Section Styles */
+            .output-tabs {
+                margin-top: 1.5em;
+            }
+            
+            .output-content {
+                background: #f9fafb;
+                border: 1px solid #e5e7eb;
+                border-radius: 8px;
+                padding: 1em;
+                margin-top: 1em;
             }
             </style>
             """

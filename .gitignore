@@ -7,7 +7,8 @@
 # github
 .github/
 
-# Gradio cache
+.vscode
+
 .gradio/
 
 # Python cache
@@ -29,8 +30,11 @@ src_backup
 settings.json
 
 # tests
-src/test_early_main
+
 *.html
+
+# tools
+.mcp
 
 # docs
 report.md

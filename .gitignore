@@ -22,11 +22,18 @@ src/db/chroma/
 *.db
 *.sqlite
 *.sqlite3
+*.pytest_cache
 
 # backup
 src_backup
+settings.json
+
+# tests
+src/test_early_main
+*.html
 
 # docs
 report.md
 code_analysis.txt
 repomix-output-src.zip.xml
+.qodo

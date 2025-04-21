@@ -1,43 +1,27 @@
 # Environment variables
 .env
-
-# Python virtual environment
 .venv
 
 # github
 .github/
-
-.vscode
+.vscode/
+.mcp
 
 .gradio/
 
 # Python cache
 **/__pycache__/
-
-# Project data
-data/logs/
-data/chroma/
-db/chroma/
-src/db/chroma/
-*.log
-*.db
-*.sqlite
-*.sqlite3
 *.pytest_cache
 
-# backup
-src_backup
-settings.json
-
-# tests
-
-*.html
-
-# tools
-.mcp
+# Project data
+data/chroma
+data/logs
+*.log
+*.db
 
 # docs
 report.md
-code_analysis.txt
-repomix-output-src.zip.xml
-.qodo
+migration_plan.md
+
+.repomix/
+repomix/

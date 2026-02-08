@@ -9,16 +9,16 @@
 
 An AI-powered educational content generator leveraging OpenAI's GPT models and ChromaDB for vector storage. Features include dynamic cheatsheet generation, interactive learning tools, and token usage analytics. Built with thread-safe operations and robust error handling.
 
-### Also available on <a href="https://huggingface.co/Synthduck"><img src="https://img.shields.io/badge/🤗_|_Hugging_Face-blue?style=flat" alt="Hugging Face" height="20" style="vertical-align:middle"></a>
 
-## 🔄 Recent Updates
+
+## Recent Updates
 
 ### Architecture & Performance Improvements
-- 🚀 Enhanced ChromaDB with thread-safe operations and error handling with backoff
-- 🔍 Token usage tracking with filtering and analytics
-- ⚡ Error handling with exponential backoff for API calls
-- 🔒 Error handling and logging system
-- 📊 Template management with CRUD operations
+- Enhanced ChromaDB with thread-safe operations and error handling with backoff
+- Token usage tracking with filtering and analytics
+- Error handling with exponential backoff for API calls
+- Error handling and logging system
+- Template management with CRUD operations
 
 ## ✨ Features
 
@@ -81,6 +81,5 @@ docker run -p 7860:7860 --env-file .env Cheatsheet-LabAI
 
 The application will be available at `http://localhost:7860`
 
-## 🤝 Contributing
-Contributions are welcome! Please feel free to submit a Pull Request.
+
 
